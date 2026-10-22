@@ -1,0 +1,48 @@
+# =============================================================================
+# GITIGNORE: AdoptMe2 Root
+# Exclusiones globales para .NET, Android, IDEs y Secretos Locales
+# =============================================================================
+
+# --- Secretos y Configuración Privada ---
+secrets.json
+.env
+.env.*
+*.pfx
+*.key
+*.pem
+
+# --- .NET / C# ---
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
+*.userosscache
+*.suo
+*.ide/
+*.swp
+*.dll
+*.pdb
+*.log
+
+# --- Android / Gradle ---
+.gradle/
+build/
+app/build/
+local.properties
+*.apk
+*.aab
+.navigation/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# --- IDEs (Jetpack Compose, Android Studio, Visual Studio, VS Code) ---
+.idea/
+*.iml
+.vscode/
+
+# --- Sistema Operativo ---
+Thumbs.db
+Desktop.ini
+.DS_Store
+

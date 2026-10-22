@@ -1,0 +1,489 @@
+package com.example.adoptme.AdoptMe
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import com.example.adoptme.SharedPreferences.Preferencias
+import com.example.adoptme.data.AppStorage
+import com.example.adoptme.data.MascotaStorage
+import com.example.adoptme.data.normalizarCorreoUsuario
+import com.example.adoptme.model.AdoptionRequest
+import com.example.adoptme.model.MensajeChat
+import com.example.adoptme.model.NotificationItem
+import com.example.adoptme.model.Pet
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+/**
+ * Pantalla principal y contenedor de navegación para el rol Adoptante.
+ * Gestiona el Scaffold con su barra inferior, el flujo de adopción/éxito
+ * y las pestañas: inicio, favoritos, centros, publicar, chat, avisos y perfil.
+ */
+@Composable
+fun PantallaPrincipalAdoptante(
+    correoUsuarioActivo: String,
+    usuarioActualSesion: UsuarioRegistrado?,
+    usuariosRegistrados: MutableList<UsuarioRegistrado>,
+    actualizarUsuarioSesion: (UsuarioRegistrado) -> Unit,
+    mascotas: MutableList<Pet>,
+    mascotasPublicadas: MutableList<Pet>,
+    mascotasFavoritas: MutableList<Pet>,
+    notificaciones: MutableList<NotificationItem>,
+    solicitudesAdopcion: MutableList<AdoptionRequest>,
+    mensajesChatActuales: MutableList<MensajeChat>,
+    almacenamientoApp: AppStorage,
+    almacenamientoMascotas: MascotaStorage,
+    preferencias: Preferencias,
+    temaSeleccionado: String,
+    cambiarTema: (String) -> Unit,
+    colorSeleccionado: String,
+    cambiarColor: (String) -> Unit,
+    tamanoTextoSeleccionado: String,
+    cambiarTamanoTexto: (String) -> Unit,
+    mascotaPreferida: String,
+    cambiarMascotaPreferida: (String) -> Unit,
+    ubicacionPreferida: String,
+    cambiarUbicacionPreferida: (String) -> Unit,
+    ordenPredeterminado: String,
+    cambiarOrdenPredeterminado: (String) -> Unit,
+    soloDisponibles: Boolean,
+    cambiarSoloDisponibles: (Boolean) -> Unit,
+    notificarNuevasMascotas: Boolean,
+    cambiarNotificarNuevasMascotas: (Boolean) -> Unit,
+    notificarAdopciones: Boolean,
+    cambiarNotificarAdopciones: (Boolean) -> Unit,
+    notificarMensajes: Boolean,
+    cambiarNotificarMensajes: (Boolean) -> Unit,
+    restablecerPreferencias: () -> Unit,
+    idCentroSeleccionado: Int,
+    cambiarIdCentro: (Int) -> Unit,
+    nombreCentroSeleccionado: String,
+    cambiarNombreCentro: (String) -> Unit,
+    correoCentroSeleccionado: String,
+    cambiarCorreoCentro: (String) -> Unit,
+    correoAdoptanteSeleccionado: String,
+    cambiarCorreoAdoptante: (String) -> Unit,
+    enviarMensajeChat: (String) -> Unit,
+    mascotaSeleccionada: Pet?,
+    cambiarMascotaSeleccionada: (Pet?) -> Unit,
+    mostrarPantallaAdopcion: Boolean,
+    cambiarMostrarPantallaAdopcion: (Boolean) -> Unit,
+    abrirDetalleActivity: (Pet) -> Unit,
+    cerrarSesion: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var pantallaSeleccionada by remember { mutableStateOf("home") }
+    var mostrarPantallaExito by remember { mutableStateOf(false) }
+    var mostrarMisPublicaciones by remember { mutableStateOf(false) }
+    var mostrarPreferencias by remember { mutableStateOf(false) }
+
+    Scaffold(
+        modifier = modifier,
+        bottomBar = {
+            if (mascotaSeleccionada == null && !mostrarPantallaAdopcion && !mostrarPantallaExito) {
+                BarraNavegacionInferior(
+                    pantalla = pantallaSeleccionada,
+                    cambiarPantalla = { pantalla ->
+                        pantallaSeleccionada = pantalla
+                    },
+                    mostrarAdmin = false
+                )
+            }
+        }
+    ) { rellenoInterior ->
+        Box(modifier = Modifier.padding(rellenoInterior)) {
+            when {
+                // 1. Pantalla de Éxito al completar una solicitud
+                mostrarPantallaExito && mascotaSeleccionada != null -> {
+                    PantallaExito(
+                        nombreMascota = mascotaSeleccionada.name,
+                        finalizar = {
+                            mostrarPantallaExito = false
+                            cambiarMostrarPantallaAdopcion(false)
+                            cambiarMascotaSeleccionada(null)
+                            pantallaSeleccionada = "home"
+                        }
+                    )
+                }
+
+                // 2. Formulario de Solicitud de Adopción
+                mostrarPantallaAdopcion && mascotaSeleccionada != null -> {
+                    val esMascotaPropia = mascotaSeleccionada.creadoPorCorreo.isNotBlank() &&
+                            mascotaSeleccionada.creadoPorCorreo.equals(correoUsuarioActivo, ignoreCase = true)
+
+                    PantallaAdopcion(
+                        mascota = mascotaSeleccionada,
+                        volver = {
+                            cambiarMostrarPantallaAdopcion(false)
+                        },
+                        esPublicacionPropia = esMascotaPropia,
+                        correoUsuarioActual = correoUsuarioActivo,
+                        enviar = { solicitud ->
+                            if (esMascotaPropia) return@PantallaAdopcion
+
+                            // Forzar siempre el correo normalizado de la sesión activa, ignorando cualquier correo del formulario
+                            val correoSolicitante = normalizarCorreoUsuario(correoUsuarioActivo)
+
+                            // Validación de solicitudes duplicadas activas
+                            val yaExisteSolicitudActiva = almacenamientoApp.cargarSolicitudesGenerales().any { req ->
+                                val coincideMascota = (req.petId != 0 && req.petId == mascotaSeleccionada.id) ||
+                                        req.petName.equals(mascotaSeleccionada.name, ignoreCase = true)
+                                val coincidePostulante = normalizarCorreoUsuario(req.email) == correoSolicitante
+                                val esActiva = req.status.equals("Pendiente", ignoreCase = true) ||
+                                        req.status.equals("En revisión", ignoreCase = true)
+                                coincideMascota && coincidePostulante && esActiva
+                            }
+
+                            if (yaExisteSolicitudActiva) return@PantallaAdopcion
+
+                            if (mascotaSeleccionada.status.equals("Disponible", ignoreCase = true)) {
+                                val solicitudFinal = solicitud.copy(
+                                    petId = if (solicitud.petId == 0) mascotaSeleccionada.id else solicitud.petId,
+                                    email = correoSolicitante
+                                )
+
+                                solicitudesAdopcion.add(solicitudFinal)
+                                almacenamientoApp.actualizarEstadoSolicitud(solicitudFinal)
+
+                                if (notificarAdopciones) {
+                                    val notifSol = NotificationItem(
+                                        title = "Solicitud enviada",
+                                        message = "Tu solicitud para adoptar a ${solicitudFinal.petName} fue registrada correctamente."
+                                    )
+                                    notificaciones.add(0, notifSol)
+                                    almacenamientoApp.guardarNotificaciones(correoSolicitante, notificaciones)
+                                }
+
+                                mostrarPantallaExito = true
+                            }
+                        }
+                    )
+                }
+
+                // 3. Pestañas de la barra de navegación
+                else -> {
+                    when (pantallaSeleccionada) {
+                        "home" -> {
+                            PantallaInicio(
+                                mascotas = mascotas,
+                                favoritos = mascotasFavoritas,
+                                mascotaPreferida = mascotaPreferida,
+                                ubicacionPreferida = ubicacionPreferida,
+                                ordenPredeterminado = ordenPredeterminado,
+                                soloDisponibles = soloDisponibles,
+                                seleccionarMascota = { mascota ->
+                                    abrirDetalleActivity(mascota)
+                                },
+                                cambiarFavorito = { mascota ->
+                                    if (mascotasFavoritas.contains(mascota)) {
+                                        mascotasFavoritas.remove(mascota)
+                                    } else {
+                                        mascotasFavoritas.add(mascota)
+                                    }
+                                    almacenamientoApp.guardarFavoritos(
+                                        correoUsuarioActivo,
+                                        mascotasFavoritas.map { it.id }
+                                    )
+                                },
+                                abrirFavoritos = {
+                                    pantallaSeleccionada = "favorites"
+                                },
+                                correoActual = correoUsuarioActivo,
+                                solicitarAdopcionDesdeTest = { mascota ->
+                                    val esPropia = mascota.creadoPorCorreo.isNotBlank() &&
+                                            mascota.creadoPorCorreo.equals(correoUsuarioActivo, ignoreCase = true)
+                                    if (!esPropia && mascota.status.equals("Disponible", ignoreCase = true)) {
+                                        cambiarMascotaSeleccionada(mascota)
+                                        cambiarMostrarPantallaAdopcion(true)
+                                    }
+                                }
+                            )
+                        }
+
+                        "favorites" -> {
+                            PantallaFavoritos(
+                                favoritos = mascotasFavoritas,
+                                volver = {
+                                    pantallaSeleccionada = "home"
+                                },
+                                seleccionarMascota = { mascota ->
+                                    abrirDetalleActivity(mascota)
+                                },
+                                cambiarFavorito = { mascota ->
+                                    if (mascotasFavoritas.contains(mascota)) {
+                                        mascotasFavoritas.remove(mascota)
+                                    } else {
+                                        mascotasFavoritas.add(mascota)
+                                    }
+                                    almacenamientoApp.guardarFavoritos(
+                                        correoUsuarioActivo,
+                                        mascotasFavoritas.map { it.id }
+                                    )
+                                },
+                                correoActual = correoUsuarioActivo
+                            )
+                        }
+
+                        "centros", "centers" -> {
+                            CentrosScreen(
+                                volver = {
+                                    pantallaSeleccionada = "home"
+                                },
+                                abrirChat = { idCentro, nombreCentro, correoCentro, _ ->
+                                    cambiarIdCentro(idCentro)
+                                    cambiarNombreCentro(nombreCentro)
+                                    cambiarCorreoCentro(correoCentro)
+                                    cambiarCorreoAdoptante(correoUsuarioActivo)
+                                    mensajesChatActuales.clear()
+                                    val guardados = almacenamientoApp.cargarMensajesChat(correoUsuarioActivo, idCentro)
+                                    mensajesChatActuales.addAll(guardados)
+                                    if (mensajesChatActuales.isEmpty()) {
+                                        val fechaActual = SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(Date())
+                                        val mensajeInicial = MensajeChat(
+                                            id = System.currentTimeMillis(),
+                                            idCentro = idCentro,
+                                            remitente = correoUsuarioActivo,
+                                            receptor = correoCentro,
+                                            texto = "Hola, quisiera recibir información sobre las mascotas disponibles para adopción.",
+                                            nombreCentro = nombreCentro,
+                                            fecha = fechaActual,
+                                            esDelCentro = false
+                                        )
+                                        mensajesChatActuales.add(mensajeInicial)
+                                        almacenamientoApp.guardarMensajesChat(correoUsuarioActivo, idCentro, mensajesChatActuales)
+                                        almacenamientoApp.registrarConversacionCentro(
+                                            correoCentro = correoCentro,
+                                            idCentro = idCentro,
+                                            correoAdoptante = correoUsuarioActivo,
+                                            nombreCentro = nombreCentro,
+                                            ultimoTexto = mensajeInicial.texto,
+                                            fecha = fechaActual
+                                        )
+                                    }
+                                    pantallaSeleccionada = "chat"
+                                }
+                            )
+                        }
+
+                        "publish" -> {
+                            PantallaPublicarMascota(
+                                correoActual = correoUsuarioActivo,
+                                publicar = { nuevaMascota ->
+                                    mascotasPublicadas.add(0, nuevaMascota)
+                                    mascotas.add(0, nuevaMascota)
+                                    almacenamientoMascotas.guardarMascotas(mascotasPublicadas)
+                                    val notifPub = NotificationItem(
+                                        title = "Mascota publicada 🐾",
+                                        message = "${nuevaMascota.name} fue publicada correctamente y ya está disponible para adopción."
+                                    )
+                                    notificaciones.add(0, notifPub)
+                                    almacenamientoApp.guardarNotificaciones(correoUsuarioActivo, notificaciones)
+                                    pantallaSeleccionada = "home"
+                                },
+                                volver = {
+                                    pantallaSeleccionada = "profile"
+                                }
+                            )
+                        }
+
+                        "chat" -> {
+                            if (correoAdoptanteSeleccionado != correoUsuarioActivo || mensajesChatActuales.isEmpty()) {
+                                cambiarCorreoAdoptante(correoUsuarioActivo)
+                                if (idCentroSeleccionado <= 0) {
+                                    cambiarIdCentro(1)
+                                    cambiarNombreCentro("Albergue Huellitas del Norte - Lima (Demo)")
+                                    cambiarCorreoCentro("centro@adoptme.com")
+                                }
+                                val guardados = almacenamientoApp.cargarMensajesChat(correoUsuarioActivo, idCentroSeleccionado)
+                                mensajesChatActuales.clear()
+                                mensajesChatActuales.addAll(guardados)
+                                if (mensajesChatActuales.isEmpty()) {
+                                    val fechaActual = SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(Date())
+                                    val mensajeInicial = MensajeChat(
+                                        id = System.currentTimeMillis(),
+                                        idCentro = idCentroSeleccionado,
+                                        remitente = correoUsuarioActivo,
+                                        receptor = correoCentroSeleccionado,
+                                        texto = "Hola, quisiera recibir información sobre las mascotas disponibles para adopción.",
+                                        nombreCentro = nombreCentroSeleccionado,
+                                        fecha = fechaActual,
+                                        esDelCentro = false
+                                    )
+                                    mensajesChatActuales.add(mensajeInicial)
+                                    almacenamientoApp.guardarMensajesChat(correoUsuarioActivo, idCentroSeleccionado, mensajesChatActuales)
+                                    almacenamientoApp.registrarConversacionCentro(
+                                        correoCentro = correoCentroSeleccionado,
+                                        idCentro = idCentroSeleccionado,
+                                        correoAdoptante = correoUsuarioActivo,
+                                        nombreCentro = nombreCentroSeleccionado,
+                                        ultimoTexto = mensajeInicial.texto,
+                                        fecha = fechaActual
+                                    )
+                                }
+                            }
+                            PantallaChat(
+                                idCentro = idCentroSeleccionado,
+                                nombreCentro = nombreCentroSeleccionado,
+                                correoCentro = correoCentroSeleccionado,
+                                correoUsuarioActual = correoUsuarioActivo,
+                                rolUsuario = "Adoptante",
+                                correoAdoptante = correoUsuarioActivo,
+                                mensajes = mensajesChatActuales,
+                                enviarMensaje = enviarMensajeChat,
+                                volver = {
+                                    pantallaSeleccionada = "centros"
+                                }
+                            )
+                        }
+
+                        "notifications" -> {
+                            PantallaNotificaciones(notificaciones = notificaciones)
+                        }
+
+                        "profile" -> {
+                            when {
+                                mostrarPreferencias -> {
+                                    PantallaPreferencias(
+                                        temaActual = temaSeleccionado,
+                                        tamanoTextoActual = tamanoTextoSeleccionado,
+                                        colorActual = colorSeleccionado,
+                                        mascotaPreferida = mascotaPreferida,
+                                        ubicacionPreferida = ubicacionPreferida,
+                                        ordenPredeterminado = ordenPredeterminado,
+                                        soloDisponibles = soloDisponibles,
+                                        notificarNuevasMascotas = notificarNuevasMascotas,
+                                        notificarAdopciones = notificarAdopciones,
+                                        notificarMensajes = notificarMensajes,
+                                        cambiarTema = { nuevoTema ->
+                                            cambiarTema(nuevoTema)
+                                            preferencias.guardarTema(correoUsuarioActivo, nuevoTema)
+                                        },
+                                        cambiarTamanoTexto = { nuevoTamano ->
+                                            cambiarTamanoTexto(nuevoTamano)
+                                            preferencias.guardarTamanoTexto(correoUsuarioActivo, nuevoTamano)
+                                        },
+                                        cambiarColor = { nuevoColor ->
+                                            cambiarColor(nuevoColor)
+                                            preferencias.guardarColorPrincipal(correoUsuarioActivo, nuevoColor)
+                                        },
+                                        cambiarMascotaPreferida = { nuevaMascota ->
+                                            cambiarMascotaPreferida(nuevaMascota)
+                                            preferencias.guardarMascotaPreferida(correoUsuarioActivo, nuevaMascota)
+                                        },
+                                        cambiarUbicacionPreferida = { nuevaUbicacion ->
+                                            cambiarUbicacionPreferida(nuevaUbicacion)
+                                            preferencias.guardarUbicacionPreferida(correoUsuarioActivo, nuevaUbicacion)
+                                        },
+                                        cambiarOrden = { nuevoOrden ->
+                                            cambiarOrdenPredeterminado(nuevoOrden)
+                                            preferencias.guardarOrdenPredeterminado(correoUsuarioActivo, nuevoOrden)
+                                        },
+                                        cambiarSoloDisponibles = { activado ->
+                                            cambiarSoloDisponibles(activado)
+                                            preferencias.guardarSoloDisponibles(correoUsuarioActivo, activado)
+                                        },
+                                        cambiarNotificacionMascotas = { activado ->
+                                            cambiarNotificarNuevasMascotas(activado)
+                                            preferencias.guardarNotificacionesNuevasMascotas(correoUsuarioActivo, activado)
+                                        },
+                                        cambiarNotificacionAdopciones = { activado ->
+                                            cambiarNotificarAdopciones(activado)
+                                            preferencias.guardarNotificacionesAdopciones(correoUsuarioActivo, activado)
+                                        },
+                                        cambiarNotificacionMensajes = { activado ->
+                                            cambiarNotificarMensajes(activado)
+                                            preferencias.guardarNotificacionesMensajes(correoUsuarioActivo, activado)
+                                        },
+                                        restablecer = {
+                                            preferencias.restablecerPreferencias(correoUsuarioActivo)
+                                            restablecerPreferencias()
+                                        },
+                                        volver = {
+                                            mostrarPreferencias = false
+                                        }
+                                    )
+                                }
+
+                                mostrarMisPublicaciones -> {
+                                    MisPublicacionesScreen(
+                                        publicaciones = mascotasPublicadas,
+                                        correoActual = correoUsuarioActivo,
+                                        volver = {
+                                            mostrarMisPublicaciones = false
+                                        },
+                                        eliminar = { mascota ->
+                                            mascotasPublicadas.removeAll { it.id == mascota.id }
+                                            mascotas.removeAll { it.id == mascota.id }
+                                            mascotasFavoritas.removeAll { it.id == mascota.id }
+                                            if (mascotaSeleccionada?.id == mascota.id) {
+                                                cambiarMascotaSeleccionada(null)
+                                            }
+                                            almacenamientoMascotas.eliminarMascota(
+                                                mascota = mascota,
+                                                mascotasRestantes = mascotasPublicadas
+                                            )
+                                            almacenamientoApp.guardarFavoritos(
+                                                correoUsuarioActivo,
+                                                mascotasFavoritas.map { it.id }
+                                            )
+                                            val notifElim = NotificationItem(
+                                                title = "Publicación eliminada",
+                                                message = "La publicación de ${mascota.name} fue eliminada correctamente."
+                                            )
+                                            notificaciones.add(0, notifElim)
+                                            almacenamientoApp.guardarNotificaciones(correoUsuarioActivo, notificaciones)
+                                        }
+                                    )
+                                }
+
+                                else -> {
+                                    PantallaPerfil(
+                                        solicitudes = solicitudesAdopcion.filter {
+                                            normalizarCorreoUsuario(it.email) == normalizarCorreoUsuario(correoUsuarioActivo)
+                                        },
+                                        usuarioActual = usuarioActualSesion,
+                                        abrirPublicaciones = {
+                                            mostrarMisPublicaciones = true
+                                        },
+                                        publicarMascota = {
+                                            pantallaSeleccionada = "publish"
+                                        },
+                                        abrirPreferencias = {
+                                            mostrarPreferencias = true
+                                        },
+                                        cerrarSesion = cerrarSesion,
+                                        guardarPerfil = { nuevoNombre, _, nuevoTelefono ->
+                                            val actual = usuarioActualSesion
+                                            if (actual != null) {
+                                                val actualizado = actual.copy(
+                                                    nombre = nuevoNombre,
+                                                    correo = actual.correo,
+                                                    telefono = nuevoTelefono
+                                                )
+                                                actualizarUsuarioSesion(actualizado)
+                                                val indice = usuariosRegistrados.indexOfFirst {
+                                                    normalizarCorreoUsuario(it.correo) == normalizarCorreoUsuario(actual.correo)
+                                                }
+                                                if (indice != -1) {
+                                                    usuariosRegistrados[indice] = actualizado
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+

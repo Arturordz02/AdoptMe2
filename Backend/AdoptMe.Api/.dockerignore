@@ -1,0 +1,32 @@
+# =============================================================================
+# DOCKERIGNORE: Backend/AdoptMe.Api
+# Exclusión de artefactos de compilación, secretos y archivos de entorno local
+# =============================================================================
+
+# Carpetas de compilación e intermedias
+bin/
+obj/
+
+# Configuraciones y cachés de IDEs
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Archivos de entorno y secretos locales
+secrets.json
+.env
+.env.*
+appsettings.Development.json
+
+# Logs y volcados
+*.log
+*.tmp
+*.dump
+
+# Archivos de Docker y Git
+.git
+.gitignore
+Dockerfile*
+
