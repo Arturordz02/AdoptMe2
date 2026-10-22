@@ -6,10 +6,11 @@ import retrofit2.converter.gson.GsonConverterFactory
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
+import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
 
-    private const val BASE_URL = "https://adoptme-api-bzc8h7fdb3hcccac.westus3-01.azurewebsites.net/"
+    private const val BASE_URL = "https://adoptme2.onrender.com/"
 
     // Permitimos inyectar las Preferencias para leer el token
     var preferencias: Preferencias? = null
@@ -30,6 +31,8 @@ object RetrofitClient {
     }
 
     private val client = OkHttpClient.Builder()
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
         .addInterceptor(authInterceptor) // <- Inyectamos el JWT aquí
         .addInterceptor(logging)
         .build()

@@ -116,7 +116,7 @@ fun PantallaInicioSesion(
                     }
                 }
             } catch (e: Exception) {
-                mensajeError = "No se pudo conectar con Azure. Revisa tu conexión."
+                mensajeError = "No se pudo conectar con el servidor. Revisa tu conexión a Internet e inténtalo nuevamente."
             } finally {
                 iniciandoSesion = false
             }
