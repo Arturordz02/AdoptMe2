@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -26,6 +27,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -37,7 +39,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import com.example.adoptme.data.remote.MascotaDto
+import com.example.adoptme.data.remote.RetrofitClient
+import com.example.adoptme.data.remote.toPet
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -249,6 +256,8 @@ fun PantallaPublicarMascota(
     correoActual: String = ""
 ) {
     val contexto = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var publicando by remember { mutableStateOf(false) }
 
     var nombre by remember { mutableStateOf("") }
     var especie by remember { mutableStateOf("") }
@@ -654,7 +663,7 @@ fun PantallaPublicarMascota(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
             ) {
                 Text(
-                    text = mensajeGeneralError,
+                    text = "⚠️ $mensajeGeneralError",
                     color = MaterialTheme.colorScheme.onErrorContainer,
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(12.dp)
@@ -664,9 +673,11 @@ fun PantallaPublicarMascota(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Botón para publicar
+        // Botón para publicar con estados de carga y llamada a Retrofit
         Button(
             onClick = {
+                if (publicando) return@Button
+
                 val resultadoValidacion = revisarPublicacion(
                     nombre = nombre,
                     especie = especie,
@@ -680,38 +691,88 @@ fun PantallaPublicarMascota(
                 errores = resultadoValidacion
 
                 if (resultadoValidacion.esValido) {
-                    val nuevaMascota = crearMascota(
-                        nombre = nombre,
-                        especie = especie,
-                        raza = raza,
-                        edad = edad,
-                        genero = genero,
-                        ubicacion = ubicacion,
-                        descripcion = descripcion,
-                        fotoBitmap = fotoMascota,
-                        creadoPorCorreo = correoActual
-                    )
-                    publicar(nuevaMascota)
+                    publicando = true
+                    mensajeGeneralError = ""
+
+                    coroutineScope.launch {
+                        try {
+                            val dto = MascotaDto(
+                                id = 0,
+                                name = nombre.trim(),
+                                species = especie.trim(),
+                                breed = raza.trim(),
+                                age = edad.trim(),
+                                gender = genero.trim(),
+                                location = ubicacion.trim(),
+                                status = "Disponible",
+                                description = descripcion.trim(),
+                                imageUrl = null,
+                                creadoPorCorreo = correoActual
+                            )
+
+                            val respuesta = RetrofitClient.mascotasApi.publicarMascota(dto)
+
+                            if (respuesta.isSuccessful) {
+                                val dtoGuardado = respuesta.body()
+                                if (dtoGuardado != null && dtoGuardado.id > 0) {
+                                    val nuevaMascota = dtoGuardado.toPet().let {
+                                        if (fotoMascota != null) it.copy(photoBitmap = fotoMascota) else it
+                                    }
+                                    publicar(nuevaMascota)
+                                } else {
+                                    mensajeGeneralError = "El servidor confirmó la operación pero no devolvió datos válidos de la mascota."
+                                }
+                            } else if (respuesta.code() == 401) {
+                                mensajeGeneralError = "Sesión no autorizada o expirada. Por favor vuelve a iniciar sesión."
+                            } else {
+                                mensajeGeneralError = "No se pudo registrar la mascota en el servidor. Código: ${respuesta.code()}"
+                            }
+                        } catch (e: Exception) {
+                            mensajeGeneralError = "No se pudo conectar con el servidor. Revisa tu conexión a Internet e inténtalo nuevamente."
+                        } finally {
+                            publicando = false
+                        }
+                    }
                 } else {
                     mensajeGeneralError = "Por favor corrige los campos indicados antes de publicar."
                 }
             },
+            enabled = !publicando,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = AdoptOrange)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_paw),
-                    contentDescription = null,
-                    modifier = Modifier.padding(end = 8.dp).size(20.dp)
-                )
-                Text(
-                    text = "PUBLICAR MASCOTA",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                if (publicando) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "PUBLICANDO EN SERVIDOR...",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = Color.White,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                } else {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_paw),
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 8.dp).size(20.dp)
+                    )
+                    Text(
+                        text = "PUBLICAR MASCOTA",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                }
             }
         }
 
