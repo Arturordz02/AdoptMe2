@@ -29,10 +29,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.adoptme.AdoptMe.PantallaDetalleMascota
 import com.example.adoptme.data.MascotaStorage
+import com.example.adoptme.data.local.AdoptMeDatabase
+import com.example.adoptme.data.local.MascotaVisitadaEntity
+import com.example.adoptme.data.normalizarCorreoUsuario
 import com.example.adoptme.data.remote.RetrofitClient
 import com.example.adoptme.data.remote.toPet
 import com.example.adoptme.model.Pet
 import com.example.adoptme.ui.theme.AdoptMeTheme
+import android.util.Log
 
 class DetalleMascotaActivity : ComponentActivity() {
 
@@ -91,6 +95,35 @@ class DetalleMascotaActivity : ComponentActivity() {
                 ) {
                     var mascotaActual by remember { mutableStateOf(mascotaInicial) }
                     var cargando by remember { mutableStateOf(mascotaInicial == null && petId > 0) }
+
+                    // Registro automático en SQLite (Room) para historial de visitas de la mascota real
+                    LaunchedEffect(mascotaActual?.id, correoUsuarioActual) {
+                        val m = mascotaActual
+                        if (m != null && m.id > 0 && correoUsuarioActual.isNotBlank()) {
+                            try {
+                                AdoptMeDatabase.obtenerInstancia(applicationContext).mascotaVisitadaDao().registrarVisita(
+                                    MascotaVisitadaEntity(
+                                        correoUsuario = normalizarCorreoUsuario(correoUsuarioActual),
+                                        mascotaId = m.id,
+                                        nombre = m.name,
+                                        especie = m.species,
+                                        raza = m.breed,
+                                        edad = m.age,
+                                        genero = m.gender,
+                                        ubicacion = m.location,
+                                        estado = m.status,
+                                        descripcion = m.description,
+                                        imagenResId = m.image,
+                                        creadoPorCorreo = m.creadoPorCorreo,
+                                        fechaUltimaVisita = System.currentTimeMillis()
+                                    )
+                                )
+                                Log.d("ROOM_SQLITE", "Visita registrada en SQLite: mascota ${m.id} (${m.name}) para $correoUsuarioActual")
+                            } catch (e: Exception) {
+                                Log.e("ROOM_SQLITE", "Error registrando visita en SQLite", e)
+                            }
+                        }
+                    }
 
                     LaunchedEffect(petId) {
                         if (mascotaActual == null && petId > 0) {

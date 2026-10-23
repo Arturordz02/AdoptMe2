@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import com.example.adoptme.SharedPreferences.Preferencias
 import com.example.adoptme.data.AppStorage
 import com.example.adoptme.data.MascotaStorage
+import com.example.adoptme.data.local.MascotaVisitadaEntity
 import com.example.adoptme.data.normalizarCorreoUsuario
 import com.example.adoptme.model.AdoptionRequest
 import com.example.adoptme.model.MensajeChat
@@ -88,6 +89,7 @@ fun PantallaPrincipalAdoptante(
     cargandoCatalogo: Boolean = false,
     errorCatalogo: String? = null,
     reintentarCargaCatalogo: () -> Unit = {},
+    mascotasVisitadas: List<MascotaVisitadaEntity> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     var pantallaSeleccionada by remember { mutableStateOf("home") }
@@ -269,6 +271,7 @@ fun PantallaPrincipalAdoptante(
                             PantallaInicio(
                                 mascotas = mascotas,
                                 favoritos = mascotasFavoritas,
+                                mascotasVisitadas = mascotasVisitadas,
                                 mascotaPreferida = mascotaPreferida,
                                 ubicacionPreferida = ubicacionPreferida,
                                 ordenPredeterminado = ordenPredeterminado,

@@ -28,6 +28,7 @@ import com.example.adoptme.data.remote.toDto
 import com.example.adoptme.data.remote.CrearSolicitudRequestDto
 import com.example.adoptme.data.remote.SolicitudResponseDto
 import com.example.adoptme.data.remote.ActualizarPerfilRequest
+import com.example.adoptme.data.local.MascotaVisitadaEntity
 import com.example.adoptme.data.remote.toCrearSolicitudDto
 import com.example.adoptme.data.remote.toDomain
 import com.example.adoptme.localizarMascotaParaAprobacion
@@ -2109,5 +2110,192 @@ class ExampleUnitTest {
         assertEquals("987654321", actualizado.telefono)
         assertEquals("usuario@adoptme.pe", actualizado.correo)
         assertEquals("Adoptante", actualizado.rol)
+    }
+
+    @Test
+    fun testFase2F_mascotaVisitadaEntity_mapeoAPet() {
+        val entidad = MascotaVisitadaEntity(
+            correoUsuario = "adoptante@adoptme.pe",
+            mascotaId = 42,
+            nombre = "Bobby",
+            especie = "Perro",
+            raza = "Mestizo",
+            edad = "2 años",
+            genero = "Macho",
+            ubicacion = "Miraflores",
+            estado = "Disponible",
+            descripcion = "Juguetón y cariñoso",
+            imagenResId = 12345,
+            creadoPorCorreo = "refugio@adoptme.pe",
+            fechaUltimaVisita = 1700000000000L
+        )
+
+        val pet = entidad.toPet()
+
+        assertEquals(42, pet.id)
+        assertEquals("Bobby", pet.name)
+        assertEquals("Perro", pet.species)
+        assertEquals("Mestizo", pet.breed)
+        assertEquals("2 años", pet.age)
+        assertEquals("Macho", pet.gender)
+        assertEquals("Miraflores", pet.location)
+        assertEquals("Disponible", pet.status)
+        assertEquals("Juguetón y cariñoso", pet.description)
+        assertEquals(12345, pet.image)
+        assertEquals("refugio@adoptme.pe", pet.creadoPorCorreo)
+        assertTrue(pet.esRemota)
+    }
+
+    @Test
+    fun testFase2F_aislamientoHistorialPorUsuario() {
+        val visitas = listOf(
+            MascotaVisitadaEntity(
+                correoUsuario = normalizarCorreoUsuario("usuarioA@adoptme.pe"),
+                mascotaId = 1,
+                nombre = "Max",
+                especie = "Perro",
+                raza = "Golden",
+                edad = "1 año",
+                genero = "Macho",
+                ubicacion = "Lima",
+                estado = "Disponible",
+                descripcion = "",
+                imagenResId = 0,
+                creadoPorCorreo = "",
+                fechaUltimaVisita = 1000L
+            ),
+            MascotaVisitadaEntity(
+                correoUsuario = normalizarCorreoUsuario("usuarioB@adoptme.pe"),
+                mascotaId = 2,
+                nombre = "Luna",
+                especie = "Gato",
+                raza = "Siamés",
+                edad = "6 meses",
+                genero = "Hembra",
+                ubicacion = "Surco",
+                estado = "Disponible",
+                descripcion = "",
+                imagenResId = 0,
+                creadoPorCorreo = "",
+                fechaUltimaVisita = 2000L
+            ),
+            MascotaVisitadaEntity(
+                correoUsuario = normalizarCorreoUsuario("USUARIOA@ADOPTME.PE"),
+                mascotaId = 3,
+                nombre = "Rocky",
+                especie = "Perro",
+                raza = "Boxer",
+                edad = "3 años",
+                genero = "Macho",
+                ubicacion = "San Borja",
+                estado = "Disponible",
+                descripcion = "",
+                imagenResId = 0,
+                creadoPorCorreo = "",
+                fechaUltimaVisita = 3000L
+            )
+        )
+
+        val correoConsultaA = normalizarCorreoUsuario("  UsuarioA@Adoptme.pe  ")
+        val visitasA = visitas.filter { it.correoUsuario == correoConsultaA }
+
+        assertEquals(2, visitasA.size)
+        assertTrue(visitasA.any { it.mascotaId == 1 })
+        assertTrue(visitasA.any { it.mascotaId == 3 })
+        assertFalse(visitasA.any { it.mascotaId == 2 })
+
+        val correoConsultaB = normalizarCorreoUsuario("usuarioB@adoptme.pe")
+        val visitasB = visitas.filter { it.correoUsuario == correoConsultaB }
+        assertEquals(1, visitasB.size)
+        assertEquals(2, visitasB[0].mascotaId)
+    }
+
+    @Test
+    fun testFase2F_reemplazoActualizaFechaVisitaSinDuplicados() {
+        val historial = mutableMapOf<Pair<String, Int>, MascotaVisitadaEntity>()
+
+        fun registrarVisitaSimulada(visita: MascotaVisitadaEntity) {
+            historial[Pair(visita.correoUsuario, visita.mascotaId)] = visita
+        }
+
+        val correo = normalizarCorreoUsuario("test@adoptme.pe")
+
+        // 1ra visita a Max (id=10) a las 1000 ms
+        registrarVisitaSimulada(
+            MascotaVisitadaEntity(
+                correoUsuario = correo,
+                mascotaId = 10,
+                nombre = "Max",
+                especie = "Perro",
+                raza = "Labrador",
+                edad = "2 años",
+                genero = "Macho",
+                ubicacion = "Lima",
+                estado = "Disponible",
+                descripcion = "",
+                imagenResId = 0,
+                creadoPorCorreo = "",
+                fechaUltimaVisita = 1000L
+            )
+        )
+
+        // 2da visita a Pelusa (id=20) a las 2000 ms
+        registrarVisitaSimulada(
+            MascotaVisitadaEntity(
+                correoUsuario = correo,
+                mascotaId = 20,
+                nombre = "Pelusa",
+                especie = "Gato",
+                raza = "Persa",
+                edad = "1 año",
+                genero = "Hembra",
+                ubicacion = "Lima",
+                estado = "Disponible",
+                descripcion = "",
+                imagenResId = 0,
+                creadoPorCorreo = "",
+                fechaUltimaVisita = 2000L
+            )
+        )
+
+        assertEquals(2, historial.size)
+
+        // 3ra visita NUEVAMENTE a Max (id=10) a las 5000 ms (re-visita)
+        registrarVisitaSimulada(
+            MascotaVisitadaEntity(
+                correoUsuario = correo,
+                mascotaId = 10,
+                nombre = "Max",
+                especie = "Perro",
+                raza = "Labrador",
+                edad = "2 años",
+                genero = "Macho",
+                ubicacion = "Lima",
+                estado = "Disponible",
+                descripcion = "",
+                imagenResId = 0,
+                creadoPorCorreo = "",
+                fechaUltimaVisita = 5000L
+            )
+        )
+
+        // Verificamos que NO hay duplicados: sigue habiendo 2 elementos
+        assertEquals(2, historial.size)
+
+        // Ordenados por más reciente primero
+        val ordenados = historial.values.sortedByDescending { it.fechaUltimaVisita }
+        assertEquals(10, ordenados[0].mascotaId)
+        assertEquals(5000L, ordenados[0].fechaUltimaVisita)
+        assertEquals(20, ordenados[1].mascotaId)
+    }
+
+    @Test
+    fun testFase2F_sinDatosSensiblesEnEntidadSQLite() {
+        val fields = MascotaVisitadaEntity::class.java.declaredFields.map { it.name }
+        assertFalse("No debe contener token", fields.contains("token"))
+        assertFalse("No debe contener password", fields.contains("password"))
+        assertFalse("No debe contener contrasena", fields.contains("contrasena"))
+        assertFalse("No debe contener hash", fields.contains("hash"))
+        assertFalse("No debe contener passwordHash", fields.contains("passwordHash"))
     }
 }

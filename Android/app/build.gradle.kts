@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -59,4 +60,8 @@ dependencies {
     // Muestra las solicitudes HTTP en Logcat para depurar
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
+    // Room SQLite local
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
 }

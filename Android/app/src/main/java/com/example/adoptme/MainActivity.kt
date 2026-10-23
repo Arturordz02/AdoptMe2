@@ -23,6 +23,8 @@ import com.example.adoptme.AdoptMe.UsuarioRegistrado
 import com.example.adoptme.SharedPreferences.Preferencias
 import com.example.adoptme.data.AppStorage
 import com.example.adoptme.data.MascotaStorage
+import com.example.adoptme.data.local.AdoptMeDatabase
+import com.example.adoptme.data.local.MascotaVisitadaEntity
 import com.example.adoptme.data.normalizarCorreoUsuario
 import com.example.adoptme.data.sincronizarPublicacionesUsuario
 import com.example.adoptme.model.AdoptionRequest
@@ -102,6 +104,7 @@ class MainActivity : ComponentActivity() {
                     // Catálogo de producción: únicamente mascotas remotas reales de Neon
                     val mascotas = remember { mutableStateListOf<Pet>() }
                     val mascotasFavoritas = remember { mutableStateListOf<Pet>() }
+                    val mascotasVisitadas = remember { mutableStateListOf<MascotaVisitadaEntity>() }
                     val notificaciones = remember { mutableStateListOf<NotificationItem>() }
                     val solicitudesAdopcion = remember { mutableStateListOf<AdoptionRequest>() }
 
@@ -225,6 +228,26 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    // Observar historial de mascotas visitadas con Room (SQLite) aislado por usuario
+                    LaunchedEffect(correoSesionActiva) {
+                        if (correoSesionActiva.isNotBlank()) {
+                            val correoNorm = normalizarCorreoUsuario(correoSesionActiva)
+                            try {
+                                AdoptMeDatabase.obtenerInstancia(applicationContext)
+                                    .mascotaVisitadaDao()
+                                    .observarMascotasVisitadas(correoNorm, 10)
+                                    .collect { lista ->
+                                        mascotasVisitadas.clear()
+                                        mascotasVisitadas.addAll(lista)
+                                    }
+                            } catch (e: Exception) {
+                                Log.e("ROOM_SQLITE", "Error observando mascotas visitadas en SQLite", e)
+                            }
+                        } else {
+                            mascotasVisitadas.clear()
+                        }
+                    }
+
                     // Estados de navegación para detalle y adopción
                     var mascotaSeleccionada by remember { mutableStateOf<Pet?>(null) }
                     var mostrarPantallaAdopcion by remember { mutableStateOf(false) }
@@ -257,6 +280,33 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val abrirDetalleActivity: (Pet) -> Unit = { pet ->
+                        if (correoSesionActiva.isNotBlank() && pet.id > 0) {
+                            coroutineScope.launch {
+                                try {
+                                    AdoptMeDatabase.obtenerInstancia(applicationContext)
+                                        .mascotaVisitadaDao()
+                                        .registrarVisita(
+                                            MascotaVisitadaEntity(
+                                                correoUsuario = normalizarCorreoUsuario(correoSesionActiva),
+                                                mascotaId = pet.id,
+                                                nombre = pet.name,
+                                                especie = pet.species,
+                                                raza = pet.breed,
+                                                edad = pet.age,
+                                                genero = pet.gender,
+                                                ubicacion = pet.location,
+                                                estado = pet.status,
+                                                descripcion = pet.description,
+                                                imagenResId = pet.image,
+                                                creadoPorCorreo = pet.creadoPorCorreo,
+                                                fechaUltimaVisita = System.currentTimeMillis()
+                                            )
+                                        )
+                                } catch (e: Exception) {
+                                    Log.e("ROOM_SQLITE", "Error registrando visita en SQLite desde MainActivity", e)
+                                }
+                            }
+                        }
                         val intent = Intent(this@MainActivity, DetalleMascotaActivity::class.java).apply {
                             putExtra("petId", pet.id)
                             putExtra("id", pet.id)
@@ -556,6 +606,7 @@ class MainActivity : ComponentActivity() {
                         preferencias.borrarTokenSesionActiva()
 
                         mascotasFavoritas.clear()
+                        mascotasVisitadas.clear()
                         notificaciones.clear()
                         solicitudesAdopcion.clear()
                         mensajesChatActuales.clear()
@@ -795,7 +846,8 @@ class MainActivity : ComponentActivity() {
                                 cerrarSesion = manejarCerrarSesion,
                                 cargandoCatalogo = cargandoCatalogo,
                                 errorCatalogo = errorCatalogo,
-                                reintentarCargaCatalogo = { recargarCatalogoTrigger++ }
+                                reintentarCargaCatalogo = { recargarCatalogoTrigger++ },
+                                mascotasVisitadas = mascotasVisitadas
                             )
                         }
                     }

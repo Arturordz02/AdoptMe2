@@ -1,6 +1,7 @@
 package com.example.adoptme.AdoptMe
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,7 +14,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -34,8 +37,10 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import com.example.adoptme.R
+import com.example.adoptme.data.local.MascotaVisitadaEntity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -267,10 +272,139 @@ private fun PildoraCompatibilidad(
     }
 }
 
+/**
+ * Sección horizontal compacta para mostrar el historial local de mascotas visitadas (Room SQLite).
+ */
+@Composable
+fun SeccionMascotasVisitadas(
+    mascotasVisitadas: List<MascotaVisitadaEntity>,
+    onMascotaClick: (MascotaVisitadaEntity) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (mascotasVisitadas.isEmpty()) return
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "🕒",
+                        fontSize = 18.sp,
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                    Column {
+                        Text(
+                            text = "Vistas recientemente",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Historial local en este dispositivo (Room SQLite)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)
+            ) {
+                items(mascotasVisitadas, key = { "${it.correoUsuario}_${it.mascotaId}" }) { item ->
+                    TarjetaMascotaVisitada(
+                        item = item,
+                        onClick = { onMascotaClick(item) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TarjetaMascotaVisitada(
+    item: MascotaVisitadaEntity,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier.width(135.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
+    ) {
+        Column {
+            val imgRes = if (item.imagenResId != 0) {
+                item.imagenResId
+            } else {
+                when (item.especie.trim().lowercase()) {
+                    "gato" -> R.drawable.luna
+                    "conejo" -> R.drawable.mia
+                    else -> R.drawable.max
+                }
+            }
+
+            Image(
+                painter = painterResource(id = imgRes),
+                contentDescription = item.nombre,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(88.dp)
+                    .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)),
+                contentScale = ContentScale.Crop
+            )
+
+            Column(modifier = Modifier.padding(8.dp)) {
+                Text(
+                    text = item.nombre,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = if (item.raza.isNotBlank()) "${item.especie} · ${item.raza}" else item.especie,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (item.ubicacion.isNotBlank()) {
+                    Text(
+                        text = "📍 ${item.ubicacion}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun PantallaInicio(
     mascotas: List<Pet>,
     favoritos: List<Pet>,
+    mascotasVisitadas: List<MascotaVisitadaEntity> = emptyList(),
     mascotaPreferida: String = "Todas",
     ubicacionPreferida: String = "Todas",
     ordenPredeterminado: String = "Más recientes",
@@ -512,6 +646,19 @@ fun PantallaInicio(
                             }
                         }
                     }
+                }
+            }
+
+            // Sección «Vistas recientemente» (Room SQLite - Fase 2F)
+            if (mascotasVisitadas.isNotEmpty()) {
+                item {
+                    SeccionMascotasVisitadas(
+                        mascotasVisitadas = mascotasVisitadas,
+                        onMascotaClick = { visitada ->
+                            val petReal = mascotas.find { it.id == visitada.mascotaId } ?: visitada.toPet()
+                            seleccionarMascota(petReal)
+                        }
+                    )
                 }
             }
 
