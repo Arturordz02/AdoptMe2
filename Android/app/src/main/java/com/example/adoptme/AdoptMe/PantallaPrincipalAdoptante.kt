@@ -21,6 +21,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import com.example.adoptme.data.remote.RetrofitClient
+import com.example.adoptme.data.remote.toDto
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -427,10 +428,10 @@ fun PantallaPrincipalAdoptante(
                                         },
                                         eliminar = { mascota ->
                                             fun aplicarEliminacionLocal() {
-                                                mascotasPublicadas.removeAll { it.id == mascota.id }
-                                                mascotas.removeAll { it.id == mascota.id }
-                                                mascotasFavoritas.removeAll { it.id == mascota.id }
-                                                if (mascotaSeleccionada?.id == mascota.id) {
+                                                mascotasPublicadas.removeAll { it.id == mascota.id && it.esRemota == mascota.esRemota }
+                                                mascotas.removeAll { it.id == mascota.id && it.esRemota == mascota.esRemota }
+                                                mascotasFavoritas.removeAll { it.id == mascota.id && it.esRemota == mascota.esRemota }
+                                                if (mascotaSeleccionada?.id == mascota.id && mascotaSeleccionada?.esRemota == mascota.esRemota) {
                                                     cambiarMascotaSeleccionada(null)
                                                 }
                                                 almacenamientoMascotas.eliminarMascota(
@@ -472,6 +473,74 @@ fun PantallaPrincipalAdoptante(
                                             } else {
                                                 aplicarEliminacionLocal()
                                                 Toast.makeText(contexto, "Publicación local eliminada.", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        editar = { mascotaEditada, onResultado ->
+                                            fun aplicarEdicionLocal() {
+                                                val indicePub = mascotasPublicadas.indexOfFirst {
+                                                    it.id == mascotaEditada.id && it.esRemota == mascotaEditada.esRemota
+                                                }
+                                                if (indicePub != -1) {
+                                                    mascotasPublicadas[indicePub] = mascotaEditada
+                                                }
+                                                val indiceCat = mascotas.indexOfFirst {
+                                                    it.id == mascotaEditada.id && it.esRemota == mascotaEditada.esRemota
+                                                }
+                                                if (indiceCat != -1) {
+                                                    mascotas[indiceCat] = mascotaEditada
+                                                }
+                                                val indiceFav = mascotasFavoritas.indexOfFirst {
+                                                    it.id == mascotaEditada.id && it.esRemota == mascotaEditada.esRemota
+                                                }
+                                                if (indiceFav != -1) {
+                                                    mascotasFavoritas[indiceFav] = mascotaEditada
+                                                }
+                                                if (mascotaSeleccionada?.id == mascotaEditada.id && mascotaSeleccionada?.esRemota == mascotaEditada.esRemota) {
+                                                    cambiarMascotaSeleccionada(mascotaEditada)
+                                                }
+                                                almacenamientoMascotas.guardarMascotas(mascotasPublicadas)
+
+                                                val notifEdit = NotificationItem(
+                                                    title = "Publicación actualizada 🐾",
+                                                    message = "La información de ${mascotaEditada.name} se actualizó correctamente."
+                                                )
+                                                notificaciones.add(0, notifEdit)
+                                                almacenamientoApp.guardarNotificaciones(correoUsuarioActivo, notificaciones)
+                                            }
+
+                                            // REGLA FASE 1C: Solo una mascota confirmada como remota (esRemota == true e id > 0)
+                                            // se envía al backend. Las mascotas locales o de demostración (esRemota == false)
+                                            // NUNCA tocan Neon, incluso si su ID coincide con un registro remoto.
+                                            val esConfirmadaRemota = mascotaEditada.esRemota && mascotaEditada.id > 0
+
+                                            if (esConfirmadaRemota) {
+                                                coroutineScope.launch {
+                                                    try {
+                                                        val dto = mascotaEditada.toDto()
+                                                        val respuesta = RetrofitClient.mascotasApi.actualizarMascota(mascotaEditada.id, dto)
+                                                        if (respuesta.isSuccessful) {
+                                                            aplicarEdicionLocal()
+                                                            Toast.makeText(contexto, "Publicación actualizada en el servidor.", Toast.LENGTH_SHORT).show()
+                                                            onResultado(true)
+                                                        } else {
+                                                            val errorMsg = when (respuesta.code()) {
+                                                                401 -> "Sesión expirada o no autorizada."
+                                                                403 -> "No tienes autorización para editar esta publicación."
+                                                                404 -> "La mascota ya no existe en el servidor."
+                                                                else -> "No se pudo actualizar en el servidor (Código: ${respuesta.code()})."
+                                                            }
+                                                            Toast.makeText(contexto, errorMsg, Toast.LENGTH_LONG).show()
+                                                            onResultado(false)
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        Toast.makeText(contexto, "No se pudo conectar con el servidor. Revisa tu conexión a Internet.", Toast.LENGTH_LONG).show()
+                                                        onResultado(false)
+                                                    }
+                                                }
+                                            } else {
+                                                aplicarEdicionLocal()
+                                                Toast.makeText(contexto, "Publicación local actualizada.", Toast.LENGTH_SHORT).show()
+                                                onResultado(true)
                                             }
                                         }
                                     )

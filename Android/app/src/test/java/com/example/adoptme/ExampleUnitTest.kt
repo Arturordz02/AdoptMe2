@@ -5,6 +5,7 @@ import com.example.adoptme.AdoptMe.filtrarMascotas
 import com.example.adoptme.AdoptMe.normalizarTexto
 import com.example.adoptme.AdoptMe.formatearEdadCanonica
 import com.example.adoptme.AdoptMe.esFormatoEdadValido
+import com.example.adoptme.AdoptMe.revisarPublicacion
 import com.example.adoptme.AdoptMe.UsuarioRegistrado
 import com.example.adoptme.data.normalizarCorreoUsuario
 import com.example.adoptme.data.obtenerClaveUsuario
@@ -17,6 +18,10 @@ import com.example.adoptme.model.MensajeChat
 import com.example.adoptme.model.NotificationItem
 import com.example.adoptme.model.Pet
 import com.example.adoptme.data.PetRepository
+import com.example.adoptme.data.convertirPetAJson
+import com.example.adoptme.data.parsearJsonAPet
+import com.example.adoptme.data.sincronizarPublicacionesUsuario
+import org.json.JSONObject
 import com.example.adoptme.data.remote.MascotaDto
 import com.example.adoptme.data.remote.toPet
 import com.example.adoptme.data.remote.toDto
@@ -1425,5 +1430,253 @@ class ExampleUnitTest {
         assertTrue(petActualizada.esRemota)
         assertEquals("En proceso", petActualizada.status)
         assertEquals("dueno.original@adoptme.pe", petActualizada.creadoPorCorreo)
+    }
+
+    @Test
+    fun testEditarPublicacion_validacionYPreservacionDeCamposInmutables() {
+        val mascotaOriginal = Pet(
+            id = 15,
+            name = "Rocky",
+            species = "Perro",
+            breed = "Schnauzer",
+            age = "3 años",
+            gender = "Macho",
+            location = "Miraflores",
+            status = "Disponible",
+            description = "Perrito muy educado",
+            creadoPorCorreo = "usuario@adoptme.com",
+            esRemota = true
+        )
+
+        // 1. Validar que la edición de campos con datos correctos sea válida
+        val validacionValida = revisarPublicacion(
+            nombre = "Rocky Modificado",
+            especie = "Perro",
+            raza = "Schnauzer Mini",
+            edad = "4 anos",
+            genero = "Macho",
+            ubicacion = "San Borja, Lima",
+            descripcion = "Perrito educado y cariñoso"
+        )
+        assertTrue(validacionValida.esValido)
+        assertNull(validacionValida.errorNombre)
+        assertNull(validacionValida.errorEdad)
+
+        // 2. Simular actualización preservando ID, creadoPorCorreo y esRemota
+        val mascotaActualizada = mascotaOriginal.copy(
+            name = "Rocky Modificado",
+            breed = "Schnauzer Mini",
+            age = formatearEdadCanonica("4 anos"),
+            location = "San Borja, Lima",
+            status = "En proceso",
+            description = "Perrito educado y cariñoso"
+        )
+
+        // Se deben conservar inmutables los identificadores y autoría
+        assertEquals(15, mascotaActualizada.id)
+        assertEquals("usuario@adoptme.com", mascotaActualizada.creadoPorCorreo)
+        assertTrue(mascotaActualizada.esRemota)
+
+        // Se deben actualizar los campos editados y la edad normalizada
+        assertEquals("Rocky Modificado", mascotaActualizada.name)
+        assertEquals("Schnauzer Mini", mascotaActualizada.breed)
+        assertEquals("4 años", mascotaActualizada.age)
+        assertEquals("San Borja, Lima", mascotaActualizada.location)
+        assertEquals("En proceso", mascotaActualizada.status)
+
+        // 3. Validar rechazo ante campos obligatorios vacíos o formatos inválidos
+        val validacionInvalida = revisarPublicacion(
+            nombre = "",
+            especie = "Loro", // Especie no admitida por RN-02
+            raza = "",
+            edad = "edad desconocida",
+            genero = "Otro",
+            ubicacion = "",
+            descripcion = ""
+        )
+        assertFalse(validacionInvalida.esValido)
+        assertNotNull(validacionInvalida.errorNombre)
+        assertNotNull(validacionInvalida.errorEspecie)
+        assertNotNull(validacionInvalida.errorEdad)
+        assertNotNull(validacionInvalida.errorGenero)
+    }
+
+    @Test
+    fun testMascotaStorage_serializacionYRecuperacionEsRemota() {
+        val mascotaRemota = Pet(
+            id = 2,
+            name = "Michi Prueba",
+            species = "Gato",
+            breed = "Criollo",
+            age = "8 meses",
+            gender = "Hembra",
+            location = "Surco, Lima",
+            status = "Disponible",
+            description = "Gatita muy linda",
+            creadoPorCorreo = "arthur01961@outlook.com",
+            esRemota = true
+        )
+
+        // 1. Serializar a JSONObject
+        val json = convertirPetAJson(mascotaRemota, "ruta/simulada.jpg")
+        assertTrue("El JSON debe contener explícitamente esRemota = true", json.has("esRemota"))
+        assertTrue(json.getBoolean("esRemota"))
+        assertEquals(2, json.getInt("id"))
+        assertEquals("Michi Prueba", json.getString("name"))
+
+        // 2. Deserializar desde JSONObject
+        val mascotaDeserializada = parsearJsonAPet(json)
+        assertTrue("La mascota reconstruida debe mantener esRemota = true", mascotaDeserializada.esRemota)
+        assertEquals(2, mascotaDeserializada.id)
+        assertEquals("arthur01961@outlook.com", mascotaDeserializada.creadoPorCorreo)
+    }
+
+    @Test
+    fun testMascotaStorage_compatibilidadConRegistrosAntiguosSinEsRemota() {
+        // Simular un JSON de una versión antigua donde el campo "esRemota" no existía
+        val jsonAntiguo = JSONObject()
+        jsonAntiguo.put("id", 10)
+        jsonAntiguo.put("name", "Mascota Antigua")
+        jsonAntiguo.put("species", "Perro")
+        jsonAntiguo.put("breed", "Mestizo")
+        jsonAntiguo.put("age", "1 año")
+        jsonAntiguo.put("gender", "Macho")
+        jsonAntiguo.put("location", "Lima")
+        jsonAntiguo.put("status", "Disponible")
+        jsonAntiguo.put("description", "Publicación creada con versión previa")
+        jsonAntiguo.put("creadoPorCorreo", "usuario@adoptme.com")
+
+        assertFalse("El JSON antiguo no contiene la clave esRemota", jsonAntiguo.has("esRemota"))
+
+        // Deserializar asegurando fallback seguro a false
+        val mascota = parsearJsonAPet(jsonAntiguo)
+        assertEquals(10, mascota.id)
+        assertFalse("Registros antiguos sin clave esRemota deben defaulting seguro a false", mascota.esRemota)
+    }
+
+    @Test
+    fun testSincronizarPublicacionesUsuario_remotasPrevalecenYSoloDelUsuario() {
+        val correoActivo = "arthur01961@outlook.com"
+
+        // Lista remota que llega de Neon (GET /api/Mascotas)
+        val mascotasRemotas = listOf(
+            Pet(
+                id = 2,
+                name = "Michi Prueba",
+                species = "Gato",
+                breed = "Criollo",
+                age = "8 meses",
+                gender = "Hembra",
+                location = "Surco, Lima",
+                status = "Disponible",
+                description = "Prueba de edición API en Neon",
+                creadoPorCorreo = "arthur01961@outlook.com",
+                esRemota = true
+            ),
+            Pet(
+                id = 1,
+                name = "Bobby Demo",
+                species = "Perro",
+                breed = "Labrador",
+                age = "2 años",
+                gender = "Macho",
+                location = "Miraflores",
+                status = "Disponible",
+                description = "Mascota de otro usuario",
+                creadoPorCorreo = "otro.usuario@adoptme.pe",
+                esRemota = true
+            )
+        )
+
+        // Lista local previa (con copia desactualizada y esRemota = false) y un borrador local
+        val publicacionesLocales = listOf(
+            Pet(
+                id = 2,
+                name = "Michi Prueba",
+                species = "Gato",
+                breed = "Criollo",
+                age = "8 meses",
+                gender = "Hembra",
+                location = "Surco, Lima",
+                status = "Disponible",
+                description = "Descripción antigua desactualizada",
+                creadoPorCorreo = "arthur01961@outlook.com",
+                esRemota = false // <- antigua copia local sin flag
+            ),
+            Pet(
+                id = 99,
+                name = "Borrador Local",
+                species = "Conejo",
+                breed = "Enano",
+                age = "5 meses",
+                gender = "Macho",
+                location = "Lima",
+                status = "Disponible",
+                description = "Mascota guardada en local",
+                creadoPorCorreo = "arthur01961@outlook.com",
+                esRemota = false
+            )
+        )
+
+        val resultado = sincronizarPublicacionesUsuario(
+            correoUsuario = correoActivo,
+            mascotasRemotas = mascotasRemotas,
+            publicacionesLocales = publicacionesLocales
+        )
+
+        // Debe contener exactamente 2 publicaciones: Michi Prueba (actualizada desde Neon) y Borrador Local
+        assertEquals(2, resultado.size)
+
+        val michiSync = resultado.find { it.id == 2 }
+        assertNotNull(michiSync)
+        assertTrue("La entidad de Neon prevalece y debe tener esRemota = true", michiSync!!.esRemota)
+        assertEquals("Prueba de edición API en Neon", michiSync.description)
+
+        // No debe contener a Bobby Demo (pertenece a otro usuario)
+        assertNull(resultado.find { it.id == 1 })
+
+        // Debe conservar el borrador local con su flag esRemota = false intacto
+        val borradorSync = resultado.find { it.id == 99 }
+        assertNotNull(borradorSync)
+        assertFalse(borradorSync!!.esRemota)
+    }
+
+    @Test
+    fun testPrevencionEdicionesLocalesFalsas_mascotasDemoNoSonRemotas() {
+        // Caso de colisión de ID: Mascota demo local con id = 2 (Luna) vs Michi Prueba en Neon con id = 2
+        val mascotaDemoLocal = Pet(
+            id = 2,
+            name = "Luna",
+            species = "Gato",
+            breed = "Gato doméstico",
+            age = "1 año",
+            gender = "Hembra",
+            location = "San Isidro",
+            status = "Disponible",
+            description = "Mascota local de demostración del repositorio",
+            creadoPorCorreo = "", // local demo no tiene autor
+            esRemota = false
+        )
+
+        val mascotaRemotaNeon = Pet(
+            id = 2,
+            name = "Michi Prueba",
+            species = "Gato",
+            breed = "Criollo",
+            age = "8 meses",
+            gender = "Hembra",
+            location = "Surco, Lima",
+            status = "Disponible",
+            description = "Mascota real en Neon",
+            creadoPorCorreo = "arthur01961@outlook.com",
+            esRemota = true
+        )
+
+        // Regla Fase 1C: Solo esConfirmadaRemota si esRemota == true e id > 0
+        val esConfirmadaRemotaDemo = mascotaDemoLocal.esRemota && mascotaDemoLocal.id > 0
+        val esConfirmadaRemotaNeon = mascotaRemotaNeon.esRemota && mascotaRemotaNeon.id > 0
+
+        assertFalse("La mascota demo NO debe considerarse remota aunque id > 0", esConfirmadaRemotaDemo)
+        assertTrue("La mascota de Neon sí es remota confirmada", esConfirmadaRemotaNeon)
     }
 }

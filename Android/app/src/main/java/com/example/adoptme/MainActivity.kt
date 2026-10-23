@@ -25,6 +25,7 @@ import com.example.adoptme.data.AppStorage
 import com.example.adoptme.data.MascotaStorage
 import com.example.adoptme.data.PetRepository
 import com.example.adoptme.data.normalizarCorreoUsuario
+import com.example.adoptme.data.sincronizarPublicacionesUsuario
 import com.example.adoptme.model.AdoptionRequest
 import com.example.adoptme.model.MensajeChat
 import com.example.adoptme.model.NotificationItem
@@ -110,15 +111,14 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(Unit) {
                         try {
                             val mascotasAzure = RetrofitClient.mascotasApi.obtenerMascotas()
+                            val mascotasRemotas = mascotasAzure.map { it.toPet() }
 
                             Log.d(
                                 "ADOPTME_RETROFIT",
                                 "Consulta exitosa. Mascotas recibidas: ${mascotasAzure.size}"
                             )
 
-                            mascotasAzure.forEach { mascotaDto ->
-                                val mascotaNueva = mascotaDto.toPet()
-
+                            mascotasRemotas.forEach { mascotaNueva ->
                                 val indiceExistente = mascotas.indexOfFirst {
                                     it.esRemota && it.id == mascotaNueva.id
                                 }
@@ -130,12 +130,57 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
 
+                            if (correoSesionActiva.isNotBlank()) {
+                                val sincronizadas = sincronizarPublicacionesUsuario(
+                                    correoUsuario = correoSesionActiva,
+                                    mascotasRemotas = mascotasRemotas,
+                                    publicacionesLocales = mascotasPublicadas
+                                )
+                                mascotasPublicadas.clear()
+                                mascotasPublicadas.addAll(sincronizadas)
+                                almacenamientoMascotas.guardarMascotas(mascotasPublicadas)
+                            }
+
                         } catch (e: Exception) {
                             Log.e(
                                 "ADOPTME_RETROFIT",
-                                "Error consultando Azure",
+                                "Error consultando Azure/Neon",
                                 e
                             )
+                        }
+                    }
+
+                    // FASE 1C: Sincronizar publicaciones del usuario autenticado en cuanto inicia sesión
+                    LaunchedEffect(correoSesionActiva) {
+                        if (correoSesionActiva.isNotBlank()) {
+                            try {
+                                val mascotasAzure = RetrofitClient.mascotasApi.obtenerMascotas()
+                                val mascotasRemotas = mascotasAzure.map { it.toPet() }
+
+                                mascotasRemotas.forEach { mascotaNueva ->
+                                    val indiceExistente = mascotas.indexOfFirst {
+                                        it.esRemota && it.id == mascotaNueva.id
+                                    }
+                                    if (indiceExistente >= 0) {
+                                        mascotas[indiceExistente] = mascotaNueva
+                                    } else {
+                                        mascotas.add(mascotaNueva)
+                                    }
+                                }
+
+                                val sincronizadas = sincronizarPublicacionesUsuario(
+                                    correoUsuario = correoSesionActiva,
+                                    mascotasRemotas = mascotasRemotas,
+                                    publicacionesLocales = mascotasPublicadas
+                                )
+                                mascotasPublicadas.clear()
+                                mascotasPublicadas.addAll(sincronizadas)
+                                almacenamientoMascotas.guardarMascotas(mascotasPublicadas)
+
+                                Log.d("ADOPTME_SYNC", "Sincronización completada para publicaciones del usuario: ${sincronizadas.size}")
+                            } catch (e: Exception) {
+                                Log.e("ADOPTME_SYNC", "Error al sincronizar publicaciones con Neon", e)
+                            }
                         }
                     }
 
