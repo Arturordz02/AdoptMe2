@@ -208,6 +208,66 @@ namespace AdoptMe.Api.Controllers
         }
 
         [Authorize]
+        [HttpPut("perfil")]
+        public async Task<IActionResult> ActualizarPerfil([FromBody] ActualizarPerfilDto dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var nombreLimpio = dto.Nombre?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(nombreLimpio))
+            {
+                return BadRequest(new
+                {
+                    mensaje = "El nombre no puede estar vacío."
+                });
+            }
+
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var emailClaim = User.FindFirst(ClaimTypes.Email)?.Value;
+
+            Usuario? usuario = null;
+
+            if (int.TryParse(userIdClaim, out int userId))
+            {
+                usuario = await _context.Usuarios
+                    .FirstOrDefaultAsync(u => u.Id == userId);
+            }
+
+            if (usuario == null && !string.IsNullOrWhiteSpace(emailClaim))
+            {
+                string correo = emailClaim.Trim().ToLowerInvariant();
+                usuario = await _context.Usuarios
+                    .FirstOrDefaultAsync(u => u.Correo == correo);
+            }
+
+            if (usuario == null)
+            {
+                return NotFound(new
+                {
+                    mensaje = "Usuario no encontrado."
+                });
+            }
+
+            // Permitir modificar únicamente nombre y teléfono
+            usuario.Nombre = nombreLimpio;
+            usuario.Telefono = dto.Telefono?.Trim() ?? string.Empty;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                usuario.Id,
+                usuario.Nombre,
+                usuario.Correo,
+                usuario.Telefono,
+                usuario.Rol
+            });
+        }
+
+        [Authorize]
         [HttpGet("sesion")]
         public IActionResult VerificarSesion()
         {
