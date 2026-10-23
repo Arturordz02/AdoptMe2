@@ -56,10 +56,12 @@ import com.example.adoptme.model.Pet
 import java.text.Normalizer
 
 fun normalizarTexto(texto: String): String {
-    val textoLimpio = texto.trim()
+    val textoLimpio = texto.trim().lowercase()
     if (textoLimpio.isEmpty()) return ""
-    val descompuesto = Normalizer.normalize(textoLimpio, Normalizer.Form.NFD)
-    return descompuesto.replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "").lowercase()
+    val protegido = textoLimpio.replace("ñ", "___enie___")
+    val descompuesto = Normalizer.normalize(protegido, Normalizer.Form.NFD)
+    val sinAcentos = descompuesto.replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+    return sinAcentos.replace("___enie___", "ñ")
 }
 
 fun esFiltroLibre(valorFiltro: String): Boolean {

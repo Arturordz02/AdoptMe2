@@ -74,7 +74,7 @@ fun PantallaExito(
                 .height(50.dp)
         ) {
             Text(
-                text = "VOLVER AL INICIO",
+                text = "Volver al inicio",
                 fontWeight = FontWeight.Bold
             )
         }

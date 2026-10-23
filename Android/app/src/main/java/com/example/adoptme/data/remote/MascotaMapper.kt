@@ -1,5 +1,6 @@
 package com.example.adoptme.data.remote
 
+import com.example.adoptme.AdoptMe.formatearEdadCanonica
 import com.example.adoptme.R
 import com.example.adoptme.model.Pet
 
@@ -15,14 +16,15 @@ fun MascotaDto.toPet(): Pet {
         name = name,
         species = species,
         breed = breed,
-        age = age,
+        age = formatearEdadCanonica(age),
         gender = gender,
         location = location,
         status = status,
         description = description,
         image = fallbackImage,
         photoBitmap = null,
-        creadoPorCorreo = creadoPorCorreo
+        creadoPorCorreo = creadoPorCorreo,
+        esRemota = id > 0
     )
 }
 

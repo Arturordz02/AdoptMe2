@@ -678,7 +678,7 @@ fun PantallaRegistro(
                         .height(50.dp)
                 ) {
                     Text(
-                        text = "Volver al inicio de sesión",
+                        text = "Iniciar sesión",
                         color = AdoptTeal,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
@@ -731,7 +731,7 @@ fun PantallaRegistro(
                     colors = ButtonDefaults.buttonColors(containerColor = AdoptTeal),
                     shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text("Ir al inicio de sesión")
+                    Text("Iniciar sesión")
                 }
             },
             shape = RoundedCornerShape(16.dp),

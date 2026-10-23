@@ -283,7 +283,7 @@ fun PantallaDetalleMascota(
                     contentDescription = null,
                     modifier = Modifier.padding(end = 8.dp).size(20.dp)
                 )
-                Text("SOLICITAR ADOPCIÓN", fontWeight = FontWeight.Bold)
+                Text("Solicitar adopción", fontWeight = FontWeight.Bold)
             }
         } else {
             Card(
@@ -324,7 +324,7 @@ fun PantallaDetalleMascota(
                 contentDescription = null,
                 modifier = Modifier.padding(end = 8.dp).size(20.dp)
             )
-            Text("COMPARTIR FICHA DE ADOPCIÓN", fontWeight = FontWeight.SemiBold)
+            Text("Compartir ficha", fontWeight = FontWeight.SemiBold)
         }
 
         Spacer(

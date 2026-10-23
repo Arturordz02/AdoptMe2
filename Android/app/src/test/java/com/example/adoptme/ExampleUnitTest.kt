@@ -3,6 +3,9 @@ package com.example.adoptme
 import com.example.adoptme.AdoptMe.esFiltroComodin
 import com.example.adoptme.AdoptMe.filtrarMascotas
 import com.example.adoptme.AdoptMe.normalizarTexto
+import com.example.adoptme.AdoptMe.formatearEdadCanonica
+import com.example.adoptme.AdoptMe.esFormatoEdadValido
+import com.example.adoptme.AdoptMe.UsuarioRegistrado
 import com.example.adoptme.data.normalizarCorreoUsuario
 import com.example.adoptme.data.obtenerClaveUsuario
 import com.example.adoptme.data.claveChat
@@ -13,6 +16,10 @@ import com.example.adoptme.model.ConversacionCentro
 import com.example.adoptme.model.MensajeChat
 import com.example.adoptme.model.NotificationItem
 import com.example.adoptme.model.Pet
+import com.example.adoptme.data.PetRepository
+import com.example.adoptme.data.remote.MascotaDto
+import com.example.adoptme.data.remote.toPet
+import com.example.adoptme.data.remote.toDto
 import com.example.adoptme.localizarMascotaParaAprobacion
 import com.example.adoptme.puedeAprobarSolicitud
 import org.junit.Assert.*
@@ -1250,5 +1257,173 @@ class ExampleUnitTest {
         // Ninguno ve las solicitudes del otro
         assertTrue(solicitudesUsuarioDemo.none { it.email == "a@gmail.com" })
         assertTrue(solicitudesNuevoUsuario.none { it.email == "usuario@adoptme.com" })
+    }
+
+    // =========================================================================
+    // TESTS UNITARIOS: SOPORTE DE ESPAÑOL (ES-PE), CARACTERES Y FORMATEO DE EDAD
+    // =========================================================================
+
+    @Test
+    fun testFormatoEdad_canonicoConvierteVariantesCorrectamente() {
+        // Variantes con 'ano' / 'anos'
+        assertEquals("1 año", formatearEdadCanonica("1 ano"))
+        assertEquals("2 años", formatearEdadCanonica("2 anos"))
+        assertEquals("3 años", formatearEdadCanonica("3 anos"))
+
+        // Variantes con 'anio' / 'anios'
+        assertEquals("1 año", formatearEdadCanonica("1 anio"))
+        assertEquals("2 años", formatearEdadCanonica("2 anios"))
+        assertEquals("5 años", formatearEdadCanonica("5 anios"))
+
+        // Formatos ya canónicos con 'año' / 'años'
+        assertEquals("1 año", formatearEdadCanonica("1 año"))
+        assertEquals("2 años", formatearEdadCanonica("2 años"))
+        assertEquals("4 años", formatearEdadCanonica("4 años"))
+
+        // Formatos de meses
+        assertEquals("1 mes", formatearEdadCanonica("1 mes"))
+        assertEquals("6 meses", formatearEdadCanonica("6 meses"))
+        assertEquals("11 meses", formatearEdadCanonica("11 meses"))
+
+        // Validación previa
+        assertTrue(esFormatoEdadValido("1 ano"))
+        assertTrue(esFormatoEdadValido("2 anos"))
+        assertTrue(esFormatoEdadValido("1 anio"))
+        assertTrue(esFormatoEdadValido("2 anios"))
+        assertTrue(esFormatoEdadValido("2 años"))
+        assertTrue(esFormatoEdadValido("6 meses"))
+        assertFalse(esFormatoEdadValido("adulto"))
+        assertFalse(esFormatoEdadValido(""))
+    }
+
+    @Test
+    fun testRegistro_preservaNombresOriginalesConEnesYTildes() {
+        val nombreConEne = "Vicuña Muñoz"
+        val usuario = UsuarioRegistrado(
+            nombre = nombreConEne.trim(),
+            correo = "vicuna@test.pe",
+            contrasena = "123456",
+            telefono = "987654321"
+        )
+
+        // El nombre original debe mantenerse intacto, sin sustitución de 'ñ' por 'n'
+        assertEquals("Vicuña Muñoz", usuario.nombre)
+        assertTrue(usuario.nombre.contains("ñ"))
+        assertNotEquals("Vicua Muñoz", usuario.nombre)
+        assertNotEquals("Vicuna Munoz", usuario.nombre)
+
+        val nombreConTildes = "Ángel Núñez"
+        val usuario2 = UsuarioRegistrado(
+            nombre = nombreConTildes.trim(),
+            correo = "angel@test.pe",
+            contrasena = "123456",
+            telefono = "987654321"
+        )
+        assertEquals("Ángel Núñez", usuario2.nombre)
+    }
+
+    @Test
+    fun testNormalizacion_preservaEneYNoMutaDatosOriginales() {
+        // normalizarTexto para búsquedas debe mantener 'ñ' y remover tildes en vocales
+        assertEquals("vicuña muñoz", normalizarTexto("Vicuña Muñoz"))
+        assertEquals("angel peña", normalizarTexto("Ángel Peña"))
+        assertEquals("cariñosa", normalizarTexto("Cariñosa"))
+
+        val mascotaOriginal = Pet(
+            id = 99,
+            name = "Vicuña Muñoz",
+            species = "Perro",
+            breed = "Criollo",
+            age = "2 años",
+            gender = "Macho",
+            location = "Miraflores, Lima",
+            status = "Disponible",
+            description = "Perrito muy cariñoso"
+        )
+
+        val busqueda = normalizarTexto("vicuña")
+        assertTrue(normalizarTexto(mascotaOriginal.name).contains(busqueda))
+
+        // Los valores de la mascota deben permanecer exactamente inmutables
+        assertEquals("Vicuña Muñoz", mascotaOriginal.name)
+        assertEquals("2 años", mascotaOriginal.age)
+        assertEquals("Perrito muy cariñoso", mascotaOriginal.description)
+    }
+
+    // =========================================================================
+    // TESTS UNITARIOS: FASE 1B - CRUD REAL DE MASCOTAS, DISTINCIÓN REMOTA Y DTO
+    // =========================================================================
+
+    @Test
+    fun testMascota_distincionFiableEntreRemotaYLocalEvitaColisiones() {
+        val repo = PetRepository()
+        val mascotasLocales = repo.getPets()
+
+        // Cada mascota local en el repositorio de mock debe tener esRemota = false
+        assertTrue(mascotasLocales.all { !it.esRemota })
+
+        // Si Neon genera un ID = 1 para una mascota remota
+        val dtoRemoto = MascotaDto(
+            id = 1,
+            name = "Bobby Real",
+            species = "Perro",
+            breed = "Criollo",
+            age = "2 años",
+            gender = "Macho",
+            location = "Miraflores, Lima",
+            status = "Disponible",
+            description = "Perrito rescatado en Neon",
+            imageUrl = null,
+            creadoPorCorreo = "rescatista@adoptme.pe"
+        )
+
+        val mascotaRemota = dtoRemoto.toPet()
+
+        // Debe marcarse como esRemota = true
+        assertTrue(mascotaRemota.esRemota)
+        assertEquals(1, mascotaRemota.id)
+
+        // Comprobar que en una lista mixta con IDs duplicados (id = 1), se distinguen fiablemente
+        val localId1 = mascotasLocales.first { it.id == 1 }
+        assertFalse(localId1.esRemota)
+
+        val listaMixta = listOf(localId1, mascotaRemota)
+        val filtradasRemotas = listaMixta.filter { it.esRemota }
+        val filtradasLocales = listaMixta.filter { !it.esRemota }
+
+        assertEquals(1, filtradasRemotas.size)
+        assertEquals("Bobby Real", filtradasRemotas.first().name)
+        assertEquals(1, filtradasLocales.size)
+        assertEquals("Max", filtradasLocales.first().name)
+    }
+
+    @Test
+    fun testMascotaDto_conversionPreservaCreadoPorCorreoYActualizaEstado() {
+        val petRemota = Pet(
+            id = 42,
+            name = "Michi",
+            species = "Gato",
+            breed = "Siamés",
+            age = "1 año",
+            gender = "Hembra",
+            location = "Surco, Lima",
+            status = "Disponible",
+            description = "Gatita muy linda",
+            creadoPorCorreo = "dueno.original@adoptme.pe",
+            esRemota = true
+        )
+
+        // Simular preparación de DTO para PUT /api/Mascotas/42 cambiando estado a "En proceso"
+        val dtoActualizado = petRemota.toDto().copy(status = "En proceso")
+
+        assertEquals(42, dtoActualizado.id)
+        assertEquals("En proceso", dtoActualizado.status)
+        assertEquals("dueno.original@adoptme.pe", dtoActualizado.creadoPorCorreo)
+
+        // Convertir de vuelta a Pet y comprobar que esRemota se mantiene true
+        val petActualizada = dtoActualizado.toPet()
+        assertTrue(petActualizada.esRemota)
+        assertEquals("En proceso", petActualizada.status)
+        assertEquals("dueno.original@adoptme.pe", petActualizada.creadoPorCorreo)
     }
 }

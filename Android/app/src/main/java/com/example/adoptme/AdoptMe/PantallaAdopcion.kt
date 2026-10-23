@@ -76,7 +76,7 @@ fun PantallaAdopcion(
                     contentDescription = "Volver",
                     modifier = Modifier.padding(end = 4.dp).size(18.dp)
                 )
-                Text("Cancelar y volver", fontWeight = FontWeight.SemiBold)
+                Text("Cancelar", fontWeight = FontWeight.SemiBold)
             }
         }
 
@@ -374,7 +374,7 @@ fun PantallaAdopcion(
                 .height(50.dp)
         ) {
             Text(
-                text = "ENVIAR SOLICITUD",
+                text = "Enviar solicitud",
                 fontWeight = FontWeight.Bold
             )
         }

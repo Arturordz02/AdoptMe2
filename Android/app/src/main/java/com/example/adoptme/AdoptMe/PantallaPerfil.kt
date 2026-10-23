@@ -250,7 +250,7 @@ fun PantallaPerfil(
                         modifier = Modifier.padding(end = 8.dp).size(18.dp)
                     )
                     Text(
-                        text = "EDITAR PERFIL",
+                        text = "Editar perfil",
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -272,7 +272,7 @@ fun PantallaPerfil(
                         modifier = Modifier.padding(end = 8.dp).size(18.dp)
                     )
                     Text(
-                        text = "PUBLICAR UNA MASCOTA",
+                        text = "Publicar mascota",
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -295,7 +295,7 @@ fun PantallaPerfil(
                         modifier = Modifier.padding(end = 8.dp).size(18.dp)
                     )
                     Text(
-                        text = "MIS PUBLICACIONES",
+                        text = "Mis publicaciones",
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -316,7 +316,7 @@ fun PantallaPerfil(
                         modifier = Modifier.padding(end = 8.dp).size(18.dp)
                     )
                     Text(
-                        text = "PREFERENCIAS",
+                        text = "Preferencias",
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -337,7 +337,7 @@ fun PantallaPerfil(
                         modifier = Modifier.padding(end = 8.dp).size(18.dp)
                     )
                     Text(
-                        text = "CERRAR SESIÓN",
+                        text = "Cerrar sesión",
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -614,7 +614,7 @@ fun PantallaPerfil(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            "GUARDAR CAMBIOS",
+                            "Guardar cambios",
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -629,7 +629,7 @@ fun PantallaPerfil(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("CANCELAR")
+                        Text("Cancelar")
                     }
                 }
             }

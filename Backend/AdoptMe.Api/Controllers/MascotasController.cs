@@ -98,13 +98,26 @@ namespace AdoptMe.Api.Controllers
         }
 
         // PUT: api/Mascotas/1
-        // Editar publicación
-        [NonAction]
+        // Editar publicación o cambiar estado
+        [Authorize]
         [HttpPut("{id:int}")]
         public async Task<IActionResult> ActualizarMascota(
-          int id,
-          [FromBody] Mascota datos)
+            int id,
+            [FromBody] Mascota datos)
         {
+            var correoAutenticado = User.FindFirst(ClaimTypes.Email)?.Value
+                ?? User.FindFirst("email")?.Value;
+            var rolAutenticado = User.FindFirst(ClaimTypes.Role)?.Value
+                ?? User.FindFirst("role")?.Value;
+
+            if (string.IsNullOrWhiteSpace(correoAutenticado))
+            {
+                return Unauthorized(new
+                {
+                    mensaje = "No se pudo identificar al usuario autenticado a partir del token."
+                });
+            }
+
             var mascota = await _context.Mascotas.FindAsync(id);
 
             if (mascota == null)
@@ -115,16 +128,65 @@ namespace AdoptMe.Api.Controllers
                 });
             }
 
-            mascota.Name = datos.Name;
-            mascota.Species = datos.Species;
-            mascota.Breed = datos.Breed;
-            mascota.Age = datos.Age;
-            mascota.Gender = datos.Gender;
-            mascota.Location = datos.Location;
-            mascota.Status = datos.Status;
-            mascota.Description = datos.Description;
-            mascota.ImageUrl = datos.ImageUrl;
-            mascota.CreadoPorCorreo = datos.CreadoPorCorreo;
+            bool esPropietario = string.Equals(
+                mascota.CreadoPorCorreo,
+                correoAutenticado.Trim(),
+                StringComparison.OrdinalIgnoreCase
+            );
+
+            bool esAdmin = string.Equals(
+                rolAutenticado,
+                "Admin",
+                StringComparison.OrdinalIgnoreCase
+            );
+
+            if (!esPropietario && !esAdmin)
+            {
+                return StatusCode(403, new
+                {
+                    mensaje = "No tienes autorización para modificar esta mascota. Solo el propietario o un Administrador pueden hacerlo."
+                });
+            }
+
+            if (!string.IsNullOrWhiteSpace(datos.Name))
+            {
+                mascota.Name = datos.Name.Trim();
+            }
+            if (!string.IsNullOrWhiteSpace(datos.Species))
+            {
+                mascota.Species = datos.Species.Trim();
+            }
+            if (datos.Breed != null)
+            {
+                mascota.Breed = datos.Breed.Trim();
+            }
+            if (datos.Age != null)
+            {
+                mascota.Age = datos.Age.Trim();
+            }
+            if (datos.Gender != null)
+            {
+                mascota.Gender = datos.Gender.Trim();
+            }
+            if (!string.IsNullOrWhiteSpace(datos.Location))
+            {
+                mascota.Location = datos.Location.Trim();
+            }
+            if (!string.IsNullOrWhiteSpace(datos.Status))
+            {
+                mascota.Status = datos.Status.Trim();
+            }
+            if (datos.Description != null)
+            {
+                mascota.Description = datos.Description.Trim();
+            }
+            if (datos.ImageUrl != null)
+            {
+                mascota.ImageUrl = datos.ImageUrl.Trim();
+            }
+
+            // REGLA ESTRICTA: CreadoPorCorreo y FechaCreacion NUNCA se modifican desde el DTO.
+            // Se preserva la autoría original y fecha de creación.
 
             await _context.SaveChangesAsync();
 
@@ -133,10 +195,23 @@ namespace AdoptMe.Api.Controllers
 
         // DELETE: api/Mascotas/1
         // Eliminar publicación
-        [NonAction]
+        [Authorize]
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> EliminarMascota(int id)
         {
+            var correoAutenticado = User.FindFirst(ClaimTypes.Email)?.Value
+                ?? User.FindFirst("email")?.Value;
+            var rolAutenticado = User.FindFirst(ClaimTypes.Role)?.Value
+                ?? User.FindFirst("role")?.Value;
+
+            if (string.IsNullOrWhiteSpace(correoAutenticado))
+            {
+                return Unauthorized(new
+                {
+                    mensaje = "No se pudo identificar al usuario autenticado a partir del token."
+                });
+            }
+
             var mascota = await _context.Mascotas.FindAsync(id);
 
             if (mascota == null)
@@ -144,6 +219,26 @@ namespace AdoptMe.Api.Controllers
                 return NotFound(new
                 {
                     mensaje = "Mascota no encontrada."
+                });
+            }
+
+            bool esPropietario = string.Equals(
+                mascota.CreadoPorCorreo,
+                correoAutenticado.Trim(),
+                StringComparison.OrdinalIgnoreCase
+            );
+
+            bool esAdmin = string.Equals(
+                rolAutenticado,
+                "Admin",
+                StringComparison.OrdinalIgnoreCase
+            );
+
+            if (!esPropietario && !esAdmin)
+            {
+                return StatusCode(403, new
+                {
+                    mensaje = "No tienes autorización para eliminar esta mascota. Solo el propietario o un Administrador pueden hacerlo."
                 });
             }
 

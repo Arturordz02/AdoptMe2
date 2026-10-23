@@ -34,6 +34,10 @@ import androidx.compose.runtime.LaunchedEffect
 import android.util.Log
 import com.example.adoptme.data.remote.RetrofitClient
 import com.example.adoptme.data.remote.toPet
+import com.example.adoptme.data.remote.toDto
+import androidx.compose.runtime.rememberCoroutineScope
+import android.widget.Toast
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -57,6 +61,7 @@ class MainActivity : ComponentActivity() {
         preferencias.migrarPreferenciasAntiguasSiExisten()
 
         setContent {
+            val coroutineScope = rememberCoroutineScope()
             // 2. Estados globales de sesión
             var correoSesionActiva by remember { mutableStateOf("") }
             var rolUsuario by remember { mutableStateOf<String?>(null) }
@@ -115,7 +120,7 @@ class MainActivity : ComponentActivity() {
                                 val mascotaNueva = mascotaDto.toPet()
 
                                 val indiceExistente = mascotas.indexOfFirst {
-                                    it.id == mascotaNueva.id
+                                    it.esRemota && it.id == mascotaNueva.id
                                 }
 
                                 if (indiceExistente >= 0) {
@@ -174,6 +179,17 @@ class MainActivity : ComponentActivity() {
                             putExtra("petId", pet.id)
                             putExtra("id", pet.id)
                             putExtra("correoUsuarioActual", correoSesionActiva)
+                            putExtra("name", pet.name)
+                            putExtra("nombre", pet.name)
+                            putExtra("species", pet.species)
+                            putExtra("breed", pet.breed)
+                            putExtra("age", pet.age)
+                            putExtra("gender", pet.gender)
+                            putExtra("location", pet.location)
+                            putExtra("status", pet.status)
+                            putExtra("description", pet.description)
+                            putExtra("image", pet.image)
+                            putExtra("creadoPorCorreo", pet.creadoPorCorreo)
                         }
                         launcherDetalle.launch(intent)
                     }
@@ -266,35 +282,61 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val manejarCambiarEstadoMascota: (Pet, String) -> Unit = { mascota, nuevoEstado ->
-                        val indice = mascotas.indexOfFirst { it.id == mascota.id }
-                        if (indice != -1) {
-                            val mascotaActualizada = mascotas[indice].copy(status = nuevoEstado)
-                            mascotas[indice] = mascotaActualizada
+                        fun aplicarCambioEstadoLocal() {
+                            val indice = mascotas.indexOfFirst { it.id == mascota.id && it.esRemota == mascota.esRemota }
+                            if (indice != -1) {
+                                val mascotaActualizada = mascotas[indice].copy(status = nuevoEstado)
+                                mascotas[indice] = mascotaActualizada
 
-                            val indicePub = mascotasPublicadas.indexOfFirst { it.id == mascota.id }
-                            if (indicePub != -1) {
-                                mascotasPublicadas[indicePub] = mascotaActualizada
-                                almacenamientoMascotas.guardarMascotas(mascotasPublicadas)
-                            }
+                                val indicePub = mascotasPublicadas.indexOfFirst { it.id == mascota.id && it.esRemota == mascota.esRemota }
+                                if (indicePub != -1) {
+                                    mascotasPublicadas[indicePub] = mascotaActualizada
+                                    almacenamientoMascotas.guardarMascotas(mascotasPublicadas)
+                                }
 
-                            val indiceFav = mascotasFavoritas.indexOfFirst { it.id == mascota.id }
-                            if (indiceFav != -1) {
-                                mascotasFavoritas[indiceFav] = mascotaActualizada
-                            }
+                                val indiceFav = mascotasFavoritas.indexOfFirst { it.id == mascota.id && it.esRemota == mascota.esRemota }
+                                if (indiceFav != -1) {
+                                    mascotasFavoritas[indiceFav] = mascotaActualizada
+                                }
 
-                            if (mascotaSeleccionada?.id == mascota.id) {
-                                mascotaSeleccionada = mascotaActualizada
+                                if (mascotaSeleccionada?.id == mascota.id && mascotaSeleccionada?.esRemota == mascota.esRemota) {
+                                    mascotaSeleccionada = mascotaActualizada
+                                }
                             }
+                        }
+
+                        if (mascota.esRemota && mascota.id > 0) {
+                            coroutineScope.launch {
+                                try {
+                                    val dto = mascota.toDto().copy(status = nuevoEstado)
+                                    val respuesta = RetrofitClient.mascotasApi.actualizarMascota(mascota.id, dto)
+                                    if (respuesta.isSuccessful) {
+                                        aplicarCambioEstadoLocal()
+                                        Toast.makeText(applicationContext, "Estado actualizado en el servidor.", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        val errorMsg = when (respuesta.code()) {
+                                            401 -> "Sesión expirada o no autorizada."
+                                            403 -> "No tienes autorización para modificar esta mascota."
+                                            404 -> "La mascota no fue encontrada en el servidor."
+                                            else -> "Error en el servidor al actualizar estado: ${respuesta.code()}"
+                                        }
+                                        Toast.makeText(applicationContext, errorMsg, Toast.LENGTH_LONG).show()
+                                    }
+                                } catch (e: Exception) {
+                                    Toast.makeText(applicationContext, "Error de conexión al actualizar estado.", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        } else {
+                            aplicarCambioEstadoLocal()
                         }
                     }
 
                     val manejarEliminarMascotaAdmin: (Pet) -> Unit = { mascota ->
-                        val esPublicada = mascotasPublicadas.any { it.id == mascota.id }
-                        if (esPublicada) {
-                            mascotasPublicadas.removeAll { it.id == mascota.id }
-                            mascotas.removeAll { it.id == mascota.id }
-                            mascotasFavoritas.removeAll { it.id == mascota.id }
-                            if (mascotaSeleccionada?.id == mascota.id) {
+                        fun aplicarEliminarMascotaLocal() {
+                            mascotasPublicadas.removeAll { it.id == mascota.id && it.esRemota == mascota.esRemota }
+                            mascotas.removeAll { it.id == mascota.id && it.esRemota == mascota.esRemota }
+                            mascotasFavoritas.removeAll { it.id == mascota.id && it.esRemota == mascota.esRemota }
+                            if (mascotaSeleccionada?.id == mascota.id && mascotaSeleccionada?.esRemota == mascota.esRemota) {
                                 mascotaSeleccionada = null
                             }
                             almacenamientoMascotas.eliminarMascota(
@@ -309,6 +351,30 @@ class MainActivity : ComponentActivity() {
                             )
                             notificaciones.add(0, notifAdmin)
                             almacenamientoApp.guardarNotificaciones("admin@adoptme.com", notificaciones)
+                        }
+
+                        if (mascota.esRemota && mascota.id > 0) {
+                            coroutineScope.launch {
+                                try {
+                                    val respuesta = RetrofitClient.mascotasApi.eliminarMascota(mascota.id)
+                                    if (respuesta.isSuccessful) {
+                                        aplicarEliminarMascotaLocal()
+                                        Toast.makeText(applicationContext, "Publicación eliminada del servidor.", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        val errorMsg = when (respuesta.code()) {
+                                            401 -> "Sesión expirada o no autorizada."
+                                            403 -> "No tienes autorización para eliminar esta publicación."
+                                            404 -> "La mascota no fue encontrada en el servidor."
+                                            else -> "No se pudo eliminar en el servidor (Código: ${respuesta.code()})."
+                                        }
+                                        Toast.makeText(applicationContext, errorMsg, Toast.LENGTH_LONG).show()
+                                    }
+                                } catch (e: Exception) {
+                                    Toast.makeText(applicationContext, "Error de conexión al eliminar publicación.", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        } else {
+                            aplicarEliminarMascotaLocal()
                         }
                     }
 

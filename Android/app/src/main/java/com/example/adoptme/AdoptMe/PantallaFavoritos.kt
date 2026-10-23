@@ -51,7 +51,7 @@ fun PantallaFavoritos(
                     contentDescription = "Volver",
                     modifier = Modifier.padding(end = 4.dp).size(18.dp)
                 )
-                Text("Volver al catálogo", fontWeight = FontWeight.SemiBold)
+                Text("Volver", fontWeight = FontWeight.SemiBold)
             }
         }
 

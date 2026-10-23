@@ -17,6 +17,11 @@ import com.example.adoptme.model.AdoptionRequest
 import com.example.adoptme.model.MensajeChat
 import com.example.adoptme.model.NotificationItem
 import com.example.adoptme.model.Pet
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import com.example.adoptme.data.remote.RetrofitClient
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -83,6 +88,8 @@ fun PantallaPrincipalAdoptante(
     var mostrarPantallaExito by remember { mutableStateOf(false) }
     var mostrarMisPublicaciones by remember { mutableStateOf(false) }
     var mostrarPreferencias by remember { mutableStateOf(false) }
+    val contexto = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
         modifier = modifier,
@@ -419,26 +426,53 @@ fun PantallaPrincipalAdoptante(
                                             mostrarMisPublicaciones = false
                                         },
                                         eliminar = { mascota ->
-                                            mascotasPublicadas.removeAll { it.id == mascota.id }
-                                            mascotas.removeAll { it.id == mascota.id }
-                                            mascotasFavoritas.removeAll { it.id == mascota.id }
-                                            if (mascotaSeleccionada?.id == mascota.id) {
-                                                cambiarMascotaSeleccionada(null)
+                                            fun aplicarEliminacionLocal() {
+                                                mascotasPublicadas.removeAll { it.id == mascota.id }
+                                                mascotas.removeAll { it.id == mascota.id }
+                                                mascotasFavoritas.removeAll { it.id == mascota.id }
+                                                if (mascotaSeleccionada?.id == mascota.id) {
+                                                    cambiarMascotaSeleccionada(null)
+                                                }
+                                                almacenamientoMascotas.eliminarMascota(
+                                                    mascota = mascota,
+                                                    mascotasRestantes = mascotasPublicadas
+                                                )
+                                                almacenamientoApp.guardarFavoritos(
+                                                    correoUsuarioActivo,
+                                                    mascotasFavoritas.map { it.id }
+                                                )
+                                                val notifElim = NotificationItem(
+                                                    title = "Publicación eliminada",
+                                                    message = "La publicación de ${mascota.name} fue eliminada correctamente."
+                                                )
+                                                notificaciones.add(0, notifElim)
+                                                almacenamientoApp.guardarNotificaciones(correoUsuarioActivo, notificaciones)
                                             }
-                                            almacenamientoMascotas.eliminarMascota(
-                                                mascota = mascota,
-                                                mascotasRestantes = mascotasPublicadas
-                                            )
-                                            almacenamientoApp.guardarFavoritos(
-                                                correoUsuarioActivo,
-                                                mascotasFavoritas.map { it.id }
-                                            )
-                                            val notifElim = NotificationItem(
-                                                title = "Publicación eliminada",
-                                                message = "La publicación de ${mascota.name} fue eliminada correctamente."
-                                            )
-                                            notificaciones.add(0, notifElim)
-                                            almacenamientoApp.guardarNotificaciones(correoUsuarioActivo, notificaciones)
+
+                                            if (mascota.esRemota && mascota.id > 0) {
+                                                coroutineScope.launch {
+                                                    try {
+                                                        val respuesta = RetrofitClient.mascotasApi.eliminarMascota(mascota.id)
+                                                        if (respuesta.isSuccessful) {
+                                                            aplicarEliminacionLocal()
+                                                            Toast.makeText(contexto, "Publicación eliminada del servidor.", Toast.LENGTH_SHORT).show()
+                                                        } else {
+                                                            val errorMsg = when (respuesta.code()) {
+                                                                401 -> "Sesión expirada o no autorizada."
+                                                                403 -> "No tienes autorización para eliminar esta publicación."
+                                                                404 -> "La mascota ya no existe en el servidor."
+                                                                else -> "No se pudo eliminar en el servidor (Código: ${respuesta.code()})."
+                                                            }
+                                                            Toast.makeText(contexto, errorMsg, Toast.LENGTH_LONG).show()
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        Toast.makeText(contexto, "No se pudo conectar con el servidor. Revisa tu conexión a Internet.", Toast.LENGTH_LONG).show()
+                                                    }
+                                                }
+                                            } else {
+                                                aplicarEliminacionLocal()
+                                                Toast.makeText(contexto, "Publicación local eliminada.", Toast.LENGTH_SHORT).show()
+                                            }
                                         }
                                     )
                                 }

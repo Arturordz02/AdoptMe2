@@ -674,7 +674,7 @@ fun PantallaAdministrador(
                     colors = ButtonDefaults.buttonColors(containerColor = AdoptTeal),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("Guardar estado")
+                    Text("Guardar")
                 }
             },
             dismissButton = {
@@ -715,12 +715,12 @@ fun PantallaAdministrador(
                     colors = ButtonDefaults.buttonColors(containerColor = StatusRedText),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("ELIMINAR", fontWeight = FontWeight.Bold)
+                    Text("Eliminar", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { mascotaParaEliminar = null }) {
-                    Text("CANCELAR")
+                    Text("Cancelar")
                 }
             },
             shape = RoundedCornerShape(16.dp),

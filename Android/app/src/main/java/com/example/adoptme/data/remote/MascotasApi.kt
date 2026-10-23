@@ -18,7 +18,7 @@ interface MascotasApi {
     @GET("api/Mascotas/{id}")
     suspend fun obtenerMascotaPorId(
         @Path("id") id: Int
-    ): MascotaDto
+    ): Response<MascotaDto>
 
     // Publicar una mascota
     @POST("api/Mascotas")

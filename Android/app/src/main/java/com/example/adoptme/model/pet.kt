@@ -14,5 +14,6 @@ data class Pet(
     val description: String,
     val image: Int = 0,
     val photoBitmap: Bitmap? = null,
-    val creadoPorCorreo: String = ""
+    val creadoPorCorreo: String = "",
+    val esRemota: Boolean = false
 )

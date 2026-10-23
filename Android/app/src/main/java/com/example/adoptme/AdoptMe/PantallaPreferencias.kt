@@ -354,7 +354,7 @@ fun PantallaPreferencias(
         ) {
 
             Text(
-                text = "↻ RESTABLECER PREFERENCIAS",
+                text = "Restablecer preferencias",
                 fontWeight = FontWeight.Bold
             )
         }

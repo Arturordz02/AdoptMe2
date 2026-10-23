@@ -315,7 +315,7 @@ fun MisPublicacionesScreen(
                                             tint = MaterialTheme.colorScheme.error
                                         )
                                         Text(
-                                            text = "ELIMINAR PUBLICACIÓN",
+                                            text = "Eliminar",
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
@@ -354,7 +354,7 @@ fun MisPublicacionesScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("ELIMINAR")
+                    Text("Eliminar")
                 }
             },
             dismissButton = {
@@ -363,7 +363,7 @@ fun MisPublicacionesScreen(
                         mascotaAEliminar = null
                     }
                 ) {
-                    Text("CANCELAR")
+                    Text("Cancelar")
                 }
             }
         )

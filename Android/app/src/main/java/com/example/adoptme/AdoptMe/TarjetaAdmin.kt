@@ -373,7 +373,7 @@ fun TarjetaMascotaAdmin(
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = AdoptTeal),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("👁️ Ver datos", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        Text("Ver datos", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                     }
 
                     Button(
@@ -382,7 +382,7 @@ fun TarjetaMascotaAdmin(
                         colors = ButtonDefaults.buttonColors(containerColor = AdoptOrange),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("🔄 Estado", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        Text("Estado", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -405,7 +405,7 @@ fun TarjetaMascotaAdmin(
                                 modifier = Modifier.padding(end = 6.dp).size(16.dp),
                                 tint = StatusRedText
                             )
-                            Text("Eliminar publicación", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                            Text("Eliminar", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
                         }
                     }
                 }

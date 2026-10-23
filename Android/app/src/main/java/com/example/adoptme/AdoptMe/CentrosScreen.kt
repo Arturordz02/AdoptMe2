@@ -281,7 +281,7 @@ fun CentrosScreen(
                                         modifier = Modifier.padding(end = 6.dp).size(18.dp)
                                     )
                                     Text(
-                                        text = "Chatear con el centro",
+                                        text = "Chatear",
                                         fontWeight = FontWeight.SemiBold
                                     )
                                 }

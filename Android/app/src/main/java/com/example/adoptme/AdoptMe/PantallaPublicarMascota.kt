@@ -100,8 +100,30 @@ fun esFormatoEdadValido(edad: String): Boolean {
         .replace('ó', 'o')
         .replace('ú', 'u')
     if (limpia.isBlank()) return false
-    val regex = Regex("""^([1-9]\d?)\s*(ano|anos|anios|año|años|mes|meses)$""")
+    val regex = Regex("""^([1-9]\d?)\s*(ano|anos|anio|anios|año|años|mes|meses)$""")
     return regex.matches(limpia)
+}
+
+/**
+ * Normaliza la representación textual de la edad a su formato canónico en español ("año", "años", "mes", "meses").
+ * Transforma de forma segura variantes como "ano", "anos", "anio", "anios" a "año" / "años".
+ */
+fun formatearEdadCanonica(edad: String): String {
+    val limpia = edad.trim().lowercase()
+        .replace('á', 'a')
+        .replace('é', 'e')
+        .replace('í', 'i')
+        .replace('ó', 'o')
+        .replace('ú', 'u')
+    val regex = Regex("""^([1-9]\d?)\s*(ano|anos|anio|anios|año|años|mes|meses)$""")
+    val match = regex.find(limpia) ?: return edad.trim()
+    val cantidad = match.groupValues[1].toIntOrNull() ?: 1
+    val unidad = match.groupValues[2]
+    return if (unidad.startsWith("m")) {
+        if (cantidad == 1) "1 mes" else "$cantidad meses"
+    } else {
+        if (cantidad == 1) "1 año" else "$cantidad años"
+    }
 }
 
 /**
@@ -222,7 +244,7 @@ fun crearMascota(
         name = nombre.trim(),
         species = especieCap,
         breed = raza.trim(),
-        age = edad.trim(),
+        age = formatearEdadCanonica(edad),
         gender = generoCap,
         location = ubicacion.trim(),
         status = "Disponible",
@@ -437,7 +459,7 @@ fun PantallaPublicarMascota(
                             modifier = Modifier.padding(end = 8.dp).size(20.dp)
                         )
                         Text(
-                            if (fotoMascota == null) "ABRIR CÁMARA" else "TOMAR OTRA FOTO",
+                            if (fotoMascota == null) "Tomar foto" else "Cambiar foto",
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -691,6 +713,8 @@ fun PantallaPublicarMascota(
                 errores = resultadoValidacion
 
                 if (resultadoValidacion.esValido) {
+                    val edadCanonica = formatearEdadCanonica(edad)
+                    edad = edadCanonica
                     publicando = true
                     mensajeGeneralError = ""
 
@@ -701,7 +725,7 @@ fun PantallaPublicarMascota(
                                 name = nombre.trim(),
                                 species = especie.trim(),
                                 breed = raza.trim(),
-                                age = edad.trim(),
+                                age = edadCanonica,
                                 gender = genero.trim(),
                                 location = ubicacion.trim(),
                                 status = "Disponible",
@@ -754,7 +778,7 @@ fun PantallaPublicarMascota(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "PUBLICANDO EN SERVIDOR...",
+                        text = "Publicando...",
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
                         color = Color.White,
@@ -767,7 +791,7 @@ fun PantallaPublicarMascota(
                         modifier = Modifier.padding(end = 8.dp).size(20.dp)
                     )
                     Text(
-                        text = "PUBLICAR MASCOTA",
+                        text = "Publicar mascota",
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
                         modifier = Modifier.padding(vertical = 4.dp)
@@ -784,7 +808,7 @@ fun PantallaPublicarMascota(
             shape = RoundedCornerShape(12.dp)
         ) {
             Text(
-                text = "CANCELAR",
+                text = "Cancelar",
                 fontWeight = FontWeight.SemiBold
             )
         }
