@@ -98,7 +98,10 @@ fun PantallaFavoritos(
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                items(favoritos) { mascota ->
+                items(
+                    items = favoritos.distinctBy { it.claveCompose },
+                    key = { it.claveCompose }
+                ) { mascota ->
                     val esPropia = mascota.creadoPorCorreo.isNotBlank() &&
                             mascota.creadoPorCorreo.equals(correoActual, ignoreCase = true)
                     TarjetaMascota(

@@ -70,13 +70,14 @@ fun MisPublicacionesScreen(
     modifier: Modifier = Modifier
 ) {
     val publicacionesPropias = remember(publicaciones, correoActual) {
-        if (correoActual.isBlank()) {
+        val lista = if (correoActual.isBlank()) {
             publicaciones
         } else {
             publicaciones.filter {
                 it.creadoPorCorreo.isBlank() || it.creadoPorCorreo.equals(correoActual, ignoreCase = true)
             }
         }
+        lista.distinctBy { it.claveCompose }
     }
 
     var mascotaAEliminar by remember {
@@ -201,7 +202,7 @@ fun MisPublicacionesScreen(
             LazyColumn {
                 items(
                     items = publicacionesPropias,
-                    key = { mascota -> mascota.id }
+                    key = { mascota -> mascota.claveCompose }
                 ) { mascota ->
                     Card(
                         modifier = Modifier

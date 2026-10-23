@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -28,7 +29,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.adoptme.AdoptMe.PantallaDetalleMascota
 import com.example.adoptme.data.MascotaStorage
-import com.example.adoptme.data.PetRepository
 import com.example.adoptme.data.remote.RetrofitClient
 import com.example.adoptme.data.remote.toPet
 import com.example.adoptme.model.Pet
@@ -43,7 +43,6 @@ class DetalleMascotaActivity : ComponentActivity() {
         val correoUsuarioActual = intent.getStringExtra("correoUsuarioActual") ?: ""
 
         val almacenamientoMascotas = MascotaStorage(this)
-        val repositorio = PetRepository()
 
         // 1. Intentar resolver la mascota desde los extras del Intent (si MainActivity pasó los datos completos)
         val intentName = intent.getStringExtra("name") ?: intent.getStringExtra("nombre")
@@ -68,13 +67,13 @@ class DetalleMascotaActivity : ComponentActivity() {
                 description = intent.getStringExtra("description") ?: "",
                 image = imgResource,
                 photoBitmap = almacenamientoMascotas.cargarMascotas().find { it.id == petId }?.photoBitmap,
-                creadoPorCorreo = intent.getStringExtra("creadoPorCorreo") ?: ""
+                creadoPorCorreo = intent.getStringExtra("creadoPorCorreo") ?: "",
+                esRemota = intent.getBooleanExtra("esRemota", petId > 0)
             )
         } else null
 
-        // 2. Si no vino en el Intent, buscar en almacenamiento local o repositorio estático
+        // 2. Si no vino en el Intent, buscar en almacenamiento local confirmado
         val mascotaLocal = almacenamientoMascotas.cargarMascotas().find { it.id == petId }
-            ?: repositorio.getPets().find { it.id == petId }
 
         val mascotaInicial = mascotaDesdeIntent ?: mascotaLocal?.let { p ->
             if (p.photoBitmap == null && p.image == 0) {
@@ -121,6 +120,7 @@ class DetalleMascotaActivity : ComponentActivity() {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
+                                .statusBarsPadding()
                                 .padding(24.dp),
                             contentAlignment = Alignment.Center
                         ) {

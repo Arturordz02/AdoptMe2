@@ -16,4 +16,11 @@ data class Pet(
     val photoBitmap: Bitmap? = null,
     val creadoPorCorreo: String = "",
     val esRemota: Boolean = false
-)
+) {
+    /**
+     * Clave única y estable para LazyColumn/LazyRow en Compose.
+     * Previene colisiones por IDs idénticos entre mascotas remotas de Neon y mascotas locales/demostrativas.
+     */
+    val claveCompose: String
+        get() = if (esRemota) "remota-$id" else "demo-$id"
+}

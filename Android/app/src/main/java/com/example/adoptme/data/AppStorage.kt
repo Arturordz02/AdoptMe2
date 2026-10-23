@@ -1,6 +1,7 @@
 package com.example.adoptme.data
 
 import android.content.Context
+import com.example.adoptme.AdoptMe.UsuarioRegistrado
 import com.example.adoptme.model.AdoptionRequest
 import com.example.adoptme.model.ConversacionCentro
 import com.example.adoptme.model.MensajeChat
@@ -83,8 +84,94 @@ class AppStorage(
         com.example.adoptme.data.claveConversacionesCentro(correoCentro)
 
     // =========================================================================
-    // FAVORITOS POR USUARIO
+    // PERFIL DE USUARIO EN CACHE (Presentación offline / sincronización de sesión)
     // =========================================================================
+
+    fun clavePerfilUsuario(correo: String): String =
+        "perfil_cache_${obtenerClaveUsuario(correo)}"
+
+    fun guardarPerfilCache(
+        correo: String,
+        nombre: String,
+        telefono: String,
+        rol: String,
+        id: Int = 0
+    ) {
+        val clave = clavePerfilUsuario(correo)
+        val obj = JSONObject().apply {
+            put("id", id)
+            put("correo", normalizarCorreoUsuario(correo))
+            put("nombre", nombre)
+            put("telefono", telefono)
+            put("rol", rol)
+        }
+        preferencias.edit()
+            .putString(clave, obj.toString())
+            .apply()
+    }
+
+    fun cargarPerfilCache(correo: String): UsuarioRegistrado? {
+        val clave = clavePerfilUsuario(correo)
+        val contenido = preferencias.getString(clave, null) ?: return null
+        return try {
+            val obj = JSONObject(contenido)
+            UsuarioRegistrado(
+                nombre = obj.optString("nombre", ""),
+                correo = obj.optString("correo", normalizarCorreoUsuario(correo)),
+                contrasena = "",
+                telefono = obj.optString("telefono", ""),
+                rol = obj.optString("rol", "Adoptante")
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    // =========================================================================
+    // FAVORITOS POR USUARIO (Soporta identificadores unívocos 'remota-id')
+    // =========================================================================
+
+    fun claveFavoritosClaves(correo: String): String =
+        "favoritos_claves_${obtenerClaveUsuario(correo)}"
+
+    fun guardarFavoritosClaves(correo: String, claves: List<String>) {
+        val clave = claveFavoritosClaves(correo)
+        val arreglo = JSONArray()
+        claves.distinct().forEach { claveItem ->
+            arreglo.put(claveItem)
+        }
+
+        preferencias.edit()
+            .putString(clave, arreglo.toString())
+            .apply()
+    }
+
+    fun cargarFavoritosClaves(correo: String): List<String> {
+        val clave = claveFavoritosClaves(correo)
+        val contenido = preferencias.getString(clave, null) ?: return emptyList()
+        val resultado = mutableListOf<String>()
+
+        try {
+            val arreglo = JSONArray(contenido)
+            for (i in 0 until arreglo.length()) {
+                val item = arreglo.optString(i, "")
+                if (item.isNotBlank()) {
+                    resultado.add(item)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        return resultado.distinct()
+    }
+
+    fun eliminarFavoritoPorClave(correo: String, claveMascota: String) {
+        val favoritosActuales = cargarFavoritosClaves(correo).toMutableList()
+        if (favoritosActuales.remove(claveMascota)) {
+            guardarFavoritosClaves(correo, favoritosActuales)
+        }
+    }
 
     fun guardarFavoritos(correo: String, ids: List<Int>) {
         val clave = claveFavoritos(correo)
@@ -194,6 +281,7 @@ class AppStorage(
             objeto.put("previousExperience", solicitud.previousExperience)
             objeto.put("reason", solicitud.reason)
             objeto.put("status", solicitud.status)
+            objeto.put("id", solicitud.id)
             arreglo.put(objeto)
         }
         return arreglo
@@ -219,7 +307,8 @@ class AppStorage(
                         timeAvailability = objeto.optString("timeAvailability", ""),
                         previousExperience = objeto.optString("previousExperience", ""),
                         reason = objeto.optString("reason", ""),
-                        status = objeto.optString("status", "Pendiente")
+                        status = objeto.optString("status", "Pendiente"),
+                        id = objeto.optInt("id", 0)
                     )
                 )
             }
@@ -301,10 +390,11 @@ class AppStorage(
     fun actualizarEstadoSolicitud(solicitudActualizada: AdoptionRequest) {
         val todas = cargarSolicitudesGenerales().toMutableList()
         val indice = todas.indexOfFirst {
+            val coincideSolicitudId = (it.id > 0 && solicitudActualizada.id > 0 && it.id == solicitudActualizada.id)
             val coincideId = (it.petId != 0 && it.petId == solicitudActualizada.petId)
             val coincideNombre = it.petName.equals(solicitudActualizada.petName, ignoreCase = true)
             val coincidePostulante = normalizarCorreoUsuario(it.email) == normalizarCorreoUsuario(solicitudActualizada.email)
-            (coincideId || coincideNombre) && coincidePostulante
+            coincideSolicitudId || ((coincideId || coincideNombre) && coincidePostulante)
         }
 
         if (indice != -1) {

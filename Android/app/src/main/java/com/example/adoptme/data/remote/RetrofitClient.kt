@@ -45,4 +45,5 @@ object RetrofitClient {
 
     val mascotasApi: MascotasApi = retrofit.create(MascotasApi::class.java)
     val usuariosApi: UsuariosApi = retrofit.create(UsuariosApi::class.java)
+    val solicitudesApi: SolicitudesApi = retrofit.create(SolicitudesApi::class.java)
 }

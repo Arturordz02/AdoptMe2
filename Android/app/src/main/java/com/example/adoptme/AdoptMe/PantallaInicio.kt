@@ -20,6 +20,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -278,7 +279,10 @@ fun PantallaInicio(
     cambiarFavorito: (Pet) -> Unit,
     abrirFavoritos: () -> Unit,
     correoActual: String = "",
-    solicitarAdopcionDesdeTest: ((Pet) -> Unit)? = null
+    solicitarAdopcionDesdeTest: ((Pet) -> Unit)? = null,
+    cargando: Boolean = false,
+    errorConexion: String? = null,
+    reintentarCarga: (() -> Unit)? = null
 ) {
     val especieInicial = when (normalizarTexto(mascotaPreferida)) {
         "perros", "perro" -> "Perro"
@@ -368,7 +372,7 @@ fun PantallaInicio(
             sexoSeleccionado = sexoSeleccionado,
             ubicacionSeleccionada = ubicacionSeleccionada,
             estadoSeleccionado = estadoSeleccionado
-        )
+        ).distinctBy { it.claveCompose }
 
         when (ordenSeleccionado) {
             "az" -> resultado.sortedBy { normalizarTexto(it.name) }
@@ -887,8 +891,113 @@ fun PantallaInicio(
                 }
             }
 
-            // Lista de resultados o Estado Vacío
-            if (mascotasFiltradas.isEmpty()) {
+            // Lista de resultados, estados de carga, error y catálogo vacío
+            if (cargando && mascotas.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            CircularProgressIndicator(
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(40.dp)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Cargando catálogo de mascotas...",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            } else if (errorConexion != null && mascotas.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_close),
+                                contentDescription = null,
+                                modifier = Modifier.size(36.dp),
+                                tint = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Error de conexión con el servidor",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = errorConexion,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                textAlign = TextAlign.Center
+                            )
+                            if (reintentarCarga != null) {
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Button(
+                                    onClick = reintentarCarga,
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.error,
+                                        contentColor = MaterialTheme.colorScheme.onError
+                                    )
+                                ) {
+                                    Text(text = "Reintentar", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if (mascotas.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_search),
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "No hay mascotas disponibles en el catálogo en este momento.",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            } else if (mascotasFiltradas.isEmpty()) {
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
@@ -931,12 +1040,12 @@ fun PantallaInicio(
                     }
                 }
             } else {
-                items(mascotasFiltradas, key = { it.id }) { mascota ->
+                items(mascotasFiltradas, key = { it.claveCompose }) { mascota ->
                     val esPropia = mascota.creadoPorCorreo.isNotBlank() &&
                             mascota.creadoPorCorreo.equals(correoActual, ignoreCase = true)
                     TarjetaMascota(
                         mascota = mascota,
-                        esFavorito = favoritos.contains(mascota),
+                        esFavorito = favoritos.any { it.claveCompose == mascota.claveCompose },
                         cambiarFavorito = { cambiarFavorito(mascota) },
                         verDetalle = { seleccionarMascota(mascota) },
                         esPublicacionPropia = esPropia

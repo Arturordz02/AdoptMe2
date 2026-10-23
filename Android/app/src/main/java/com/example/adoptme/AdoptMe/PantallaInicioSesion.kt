@@ -61,7 +61,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun PantallaInicioSesion(
-    iniciarSesion: (rol: String, correo: String, token: String) -> Unit,
+    iniciarSesion: (rol: String, correo: String, token: String, nombre: String, telefono: String) -> Unit,
     irARegistro: () -> Unit = {},
     usuariosRegistrados: List<UsuarioRegistrado> = emptyList(),
     mensajeExitoInicial: String? = null,
@@ -103,7 +103,7 @@ fun PantallaInicioSesion(
                         val usuario = respuesta.body()
                         if (usuario != null) {
                             mensajeError = ""
-                            iniciarSesion(usuario.rol, usuario.correo, usuario.token)
+                            iniciarSesion(usuario.rol, usuario.correo, usuario.token, usuario.nombre, usuario.telefono)
                         } else {
                             mensajeError = "Respuesta inesperada del servidor."
                         }

@@ -95,10 +95,10 @@ fun sincronizarPublicacionesUsuario(
         idsRemotosProcesados.add(remota.id)
     }
 
-    // 3. Conservar publicaciones locales puras (esRemota = false) que pertenezcan a este usuario
+    // 3. Conservar publicaciones locales puras (esRemota = false) que pertenezcan explícitamente a este usuario
     // y cuyos IDs no colisionen con las remotas recién sincronizadas
     publicacionesLocales.forEach { local ->
-        val perteneceAUsuario = local.creadoPorCorreo.isBlank() ||
+        val perteneceAUsuario = local.creadoPorCorreo.isNotBlank() &&
                 normalizarCorreoUsuario(local.creadoPorCorreo) == correoNorm
 
         val esLocalPura = !local.esRemota

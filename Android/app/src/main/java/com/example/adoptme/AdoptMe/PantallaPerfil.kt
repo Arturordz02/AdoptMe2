@@ -20,6 +20,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -30,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,7 +42,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.adoptme.AdoptMe.UsuarioRegistrado
+import com.example.adoptme.data.remote.ActualizarPerfilRequest
+import com.example.adoptme.data.remote.RetrofitClient
 import com.example.adoptme.model.AdoptionRequest
+import kotlinx.coroutines.launch
 
 @Composable
 fun PantallaPerfil(
@@ -53,13 +59,9 @@ fun PantallaPerfil(
     modifier: Modifier = Modifier
 ) {
 
-    val nombreInicial = usuarioActual?.nombre ?: "Usuario AdoptMe (Demo)"
-    val correoInicial = usuarioActual?.correo ?: "usuario@adoptme.com"
-    val telefonoInicial = if (usuarioActual != null && usuarioActual.telefono.isNotBlank()) {
-        usuarioActual.telefono
-    } else {
-        "999 999 999 (Demo)"
-    }
+    val nombreInicial = usuarioActual?.nombre?.ifBlank { "Usuario AdoptMe" } ?: "Usuario AdoptMe"
+    val correoInicial = usuarioActual?.correo.orEmpty()
+    val telefonoInicial = usuarioActual?.telefono?.trim().orEmpty()
 
     var nombre by remember(usuarioActual) {
         mutableStateOf(nombreInicial)
@@ -83,6 +85,11 @@ fun PantallaPerfil(
 
     var mensajeErrorPerfil by remember {
         mutableStateOf("")
+    }
+
+    val coroutineScope = rememberCoroutineScope()
+    var guardando by remember {
+        mutableStateOf(false)
     }
 
     var errorNombre by remember {
@@ -174,7 +181,7 @@ fun PantallaPerfil(
                             )
 
                             Text(
-                                text = if (usuarioActual == null) "Rol: Adoptante (Cuenta Demo)" else "Rol: Adoptante Responsable",
+                                text = "Rol: ${usuarioActual?.rol?.ifBlank { "Adoptante" } ?: "Adoptante"}",
                                 style =
                                     MaterialTheme
                                         .typography
@@ -200,7 +207,7 @@ fun PantallaPerfil(
                     )
 
                     Text(
-                        text = correo,
+                        text = correo.ifBlank { "Sin correo registrado" },
                         style =
                             MaterialTheme
                                 .typography
@@ -221,7 +228,7 @@ fun PantallaPerfil(
                     )
 
                     Text(
-                        text = telefono,
+                        text = if (telefono.isBlank()) "Sin teléfono registrado" else telefono,
                         style =
                             MaterialTheme
                                 .typography
@@ -584,6 +591,24 @@ fun PantallaPerfil(
                         )
                     }
 
+                    if (mensajeErrorPerfil.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            )
+                        ) {
+                            Text(
+                                text = "⚠️ $mensajeErrorPerfil",
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+                    }
+
                     Spacer(
                         modifier = Modifier.height(18.dp)
                     )
@@ -591,32 +616,85 @@ fun PantallaPerfil(
                     Button(
                         onClick = {
                             val nombreLimpio = nombre.trim()
+                            val telefonoLimpio = telefono.trim()
                             var hayError = false
 
                             if (nombreLimpio.isBlank()) {
                                 errorNombre = "El nombre completo no puede estar vacío."
                                 hayError = true
+                            } else if (nombreLimpio.length < 2) {
+                                errorNombre = "El nombre debe tener al menos 2 caracteres."
+                                hayError = true
                             }
 
-                            if (!esTelefonoPeruanoValido(telefono)) {
+                            if (telefonoLimpio.isNotBlank() && !esTelefonoPeruanoValido(telefonoLimpio)) {
                                 errorTelefono = "El teléfono debe tener 9 dígitos y empezar con 9."
                                 hayError = true
                             }
 
-                            if (!hayError) {
-                                estaEditando = false
-                                mostrarMensaje = true
+                            if (!hayError && !guardando) {
+                                guardando = true
+                                mensajeErrorPerfil = ""
                                 errorNombre = null
                                 errorTelefono = null
-                                guardarPerfil(nombreLimpio, correoInicial, normalizarTelefonoPeruano(telefono))
+
+                                coroutineScope.launch {
+                                    try {
+                                        val telParaEnviar = if (telefonoLimpio.isNotBlank()) normalizarTelefonoPeruano(telefonoLimpio) else ""
+                                        val respuesta = RetrofitClient.usuariosApi.actualizarPerfil(
+                                            ActualizarPerfilRequest(
+                                                nombre = nombreLimpio,
+                                                telefono = telParaEnviar
+                                            )
+                                        )
+
+                                        if (respuesta.isSuccessful) {
+                                            val perfilActualizado = respuesta.body()
+                                            if (perfilActualizado != null) {
+                                                nombre = perfilActualizado.nombre
+                                                telefono = perfilActualizado.telefono
+                                                guardarPerfil(
+                                                    perfilActualizado.nombre,
+                                                    perfilActualizado.correo,
+                                                    perfilActualizado.telefono
+                                                )
+                                                estaEditando = false
+                                                mostrarMensaje = true
+                                                mensajeErrorPerfil = ""
+                                            } else {
+                                                mensajeErrorPerfil = "El servidor no devolvió los datos actualizados."
+                                            }
+                                        } else {
+                                            mensajeErrorPerfil = "No se pudo actualizar el perfil. Código de error: ${respuesta.code()}"
+                                        }
+                                    } catch (e: Exception) {
+                                        mensajeErrorPerfil = "Error de conexión con el servidor. Revisa tu conexión e inténtalo nuevamente."
+                                    } finally {
+                                        guardando = false
+                                    }
+                                }
                             }
                         },
+                        enabled = !guardando,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            "Guardar cambios",
-                            fontWeight = FontWeight.Bold
-                        )
+                        if (guardando) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Guardando...",
+                                fontWeight = FontWeight.Bold
+                            )
+                        } else {
+                            Text(
+                                "Guardar cambios",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
 
                     TextButton(
@@ -625,8 +703,10 @@ fun PantallaPerfil(
                             telefono = telefonoInicial
                             errorNombre = null
                             errorTelefono = null
+                            mensajeErrorPerfil = ""
                             estaEditando = false
                         },
+                        enabled = !guardando,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Cancelar")

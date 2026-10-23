@@ -1,39 +1,54 @@
 package com.example.adoptme.AdoptMe
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.ui.res.painterResource
-import com.example.adoptme.R
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.ui.Alignment
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.adoptme.R
 import com.example.adoptme.model.AdoptionRequest
 import com.example.adoptme.model.Pet
 
@@ -41,53 +56,120 @@ import com.example.adoptme.model.Pet
 fun PantallaAdopcion(
     mascota: Pet,
     volver: () -> Unit,
-    enviar: (AdoptionRequest) -> Unit,
+    enviar: (AdoptionRequest, (Boolean, String?) -> Unit) -> Unit,
     modifier: Modifier = Modifier,
     esPublicacionPropia: Boolean = false,
     correoUsuarioActual: String = ""
 ) {
-    var nombre by remember { mutableStateOf("") }
-    var telefono by remember { mutableStateOf("") }
-    // Prellenado obligatorio con el correo del usuario que inició sesión
-    var correo by remember(correoUsuarioActual) { mutableStateOf(correoUsuarioActual) }
-    var direccion by remember { mutableStateOf("") }
-    var tipoVivienda by remember { mutableStateOf("") }
-    var disponibilidadTiempo by remember { mutableStateOf("") }
-    var experienciaPrevia by remember { mutableStateOf("") }
-    var motivo by remember { mutableStateOf("") }
-
+    var enviando by remember { mutableStateOf(false) }
     var mensajeError by remember { mutableStateOf("") }
+
+    // Interceptar el botón Atrás del sistema Android para comportamiento coherente con «Volver»
+    BackHandler(enabled = !enviando) {
+        volver()
+    }
+
+    var nombre by rememberSaveable { mutableStateOf("") }
+    var telefono by rememberSaveable { mutableStateOf("") }
+    // Prellenado obligatorio con el correo del usuario que inició sesión
+    var correo by rememberSaveable(correoUsuarioActual) { mutableStateOf(correoUsuarioActual) }
+    var direccion by rememberSaveable { mutableStateOf("") }
+    var tipoVivienda by rememberSaveable { mutableStateOf("") }
+    var disponibilidadTiempo by rememberSaveable { mutableStateOf("") }
+    var experienciaPrevia by rememberSaveable { mutableStateOf("") }
+    var motivo by rememberSaveable { mutableStateOf("") }
 
     val estaDisponible = mascota.status.equals("Disponible", ignoreCase = true)
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        TextButton(
-            onClick = volver,
-            modifier = Modifier.padding(bottom = 4.dp)
+        // Barra superior fija con botón «Volver» accesible y con zona táctil mínima de 48 dp
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 2.dp
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_arrow_back),
-                    contentDescription = "Volver",
-                    modifier = Modifier.padding(end = 4.dp).size(18.dp)
-                )
-                Text("Cancelar", fontWeight = FontWeight.SemiBold)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = { if (!enviando) volver() },
+                    enabled = !enviando,
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .defaultMinSize(minWidth = 100.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.primary
+                    ),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_arrow_back),
+                            contentDescription = "Volver",
+                            modifier = Modifier
+                                .padding(end = 6.dp)
+                                .size(20.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "Volver",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column {
+                    Text(
+                        text = "Solicitud de adopción",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = mascota.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
 
-        Text(
-            text = "Formulario de Adopción",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+        // Contenido del formulario con desplazamiento vertical independiente
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+        ) {
+            Text(
+                text = "Formulario de Adopción",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
         // Tarjeta resumen de la mascota solicitada
         Card(
@@ -326,6 +408,7 @@ fun PantallaAdopcion(
 
         Button(
             onClick = {
+                if (enviando) return@Button
                 val correoFinal = if (correoUsuarioActual.isNotBlank()) correoUsuarioActual.trim() else correo.trim()
 
                 if (esPublicacionPropia) {
@@ -347,6 +430,7 @@ fun PantallaAdopcion(
                     mensajeError = "Ingresa un correo electrónico con formato válido."
                 } else {
                     mensajeError = ""
+                    enviando = true
                     val solicitud = AdoptionRequest(
                         petId = mascota.id,
                         petName = mascota.name,
@@ -361,10 +445,15 @@ fun PantallaAdopcion(
                         reason = motivo.trim(),
                         status = "Pendiente"
                     )
-                    enviar(solicitud)
+                    enviar(solicitud) { exito, error ->
+                        enviando = false
+                        if (!exito && !error.isNullOrBlank()) {
+                            mensajeError = error
+                        }
+                    }
                 }
             },
-            enabled = estaDisponible && !esPublicacionPropia,
+            enabled = estaDisponible && !esPublicacionPropia && !enviando,
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.secondary
@@ -373,12 +462,67 @@ fun PantallaAdopcion(
                 .fillMaxWidth()
                 .height(50.dp)
         ) {
+            if (enviando) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = MaterialTheme.colorScheme.onSecondary,
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Enviando solicitud...",
+                    fontWeight = FontWeight.Bold
+                )
+            } else {
+                Text(
+                    text = "Enviar solicitud",
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        OutlinedButton(
+            onClick = { if (!enviando) volver() },
+            enabled = !enviando,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+        ) {
             Text(
-                text = "Enviar solicitud",
-                fontWeight = FontWeight.Bold
+                text = "Cancelar y volver",
+                fontWeight = FontWeight.SemiBold
             )
         }
 
         Spacer(modifier = Modifier.height(24.dp))
     }
 }
+}
+
+@Composable
+fun PantallaAdopcion(
+    mascota: Pet,
+    volver: () -> Unit,
+    enviarSimple: (AdoptionRequest) -> Unit,
+    modifier: Modifier = Modifier,
+    esPublicacionPropia: Boolean = false,
+    correoUsuarioActual: String = ""
+) = PantallaAdopcion(
+    mascota = mascota,
+    volver = volver,
+    enviar = { sol, cb ->
+        enviarSimple(sol)
+        cb(true, null)
+    },
+    modifier = modifier,
+    esPublicacionPropia = esPublicacionPropia,
+    correoUsuarioActual = correoUsuarioActual
+)

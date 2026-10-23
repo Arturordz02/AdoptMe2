@@ -23,7 +23,6 @@ import com.example.adoptme.AdoptMe.UsuarioRegistrado
 import com.example.adoptme.SharedPreferences.Preferencias
 import com.example.adoptme.data.AppStorage
 import com.example.adoptme.data.MascotaStorage
-import com.example.adoptme.data.PetRepository
 import com.example.adoptme.data.normalizarCorreoUsuario
 import com.example.adoptme.data.sincronizarPublicacionesUsuario
 import com.example.adoptme.model.AdoptionRequest
@@ -48,8 +47,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. Inicialización de repositorios y persistencia local
-        val repositorio = PetRepository()
+        // 1. Inicialización de persistencia local
         val almacenamientoMascotas = MascotaStorage(applicationContext)
         val almacenamientoApp = AppStorage(applicationContext)
         val preferencias = Preferencias(applicationContext)
@@ -97,19 +95,25 @@ class MainActivity : ComponentActivity() {
                     // 5. Listas reactivas principales (fuente única de verdad)
                     val mascotasPublicadas = remember {
                         mutableStateListOf<Pet>().apply {
-                            addAll(almacenamientoMascotas.cargarMascotas())
+                            addAll(almacenamientoMascotas.cargarMascotas().filter { it.esRemota && it.creadoPorCorreo.isNotBlank() })
                         }
                     }
 
-                    val mascotas = remember {
-                        mutableStateListOf<Pet>().apply {
-                            addAll(mascotasPublicadas)
-                            addAll(repositorio.getPets())
-                        }
-                    }
+                    // Catálogo de producción: únicamente mascotas remotas reales de Neon
+                    val mascotas = remember { mutableStateListOf<Pet>() }
+                    val mascotasFavoritas = remember { mutableStateListOf<Pet>() }
+                    val notificaciones = remember { mutableStateListOf<NotificationItem>() }
+                    val solicitudesAdopcion = remember { mutableStateListOf<AdoptionRequest>() }
 
-                    LaunchedEffect(Unit) {
+                    // Estados de carga y error del catálogo remoto
+                    var cargandoCatalogo by remember { mutableStateOf(true) }
+                    var errorCatalogo by remember { mutableStateOf<String?>(null) }
+                    var recargarCatalogoTrigger by remember { mutableStateOf(0) }
+
+                    LaunchedEffect(recargarCatalogoTrigger) {
                         try {
+                            cargandoCatalogo = true
+                            errorCatalogo = null
                             val mascotasAzure = RetrofitClient.mascotasApi.obtenerMascotas()
                             val mascotasRemotas = mascotasAzure.map { it.toPet() }
 
@@ -118,17 +122,9 @@ class MainActivity : ComponentActivity() {
                                 "Consulta exitosa. Mascotas recibidas: ${mascotasAzure.size}"
                             )
 
-                            mascotasRemotas.forEach { mascotaNueva ->
-                                val indiceExistente = mascotas.indexOfFirst {
-                                    it.esRemota && it.id == mascotaNueva.id
-                                }
-
-                                if (indiceExistente >= 0) {
-                                    mascotas[indiceExistente] = mascotaNueva
-                                } else {
-                                    mascotas.add(mascotaNueva)
-                                }
-                            }
+                            mascotas.clear()
+                            mascotas.addAll(mascotasRemotas)
+                            cargandoCatalogo = false
 
                             if (correoSesionActiva.isNotBlank()) {
                                 val sincronizadas = sincronizarPublicacionesUsuario(
@@ -139,34 +135,71 @@ class MainActivity : ComponentActivity() {
                                 mascotasPublicadas.clear()
                                 mascotasPublicadas.addAll(sincronizadas)
                                 almacenamientoMascotas.guardarMascotas(mascotasPublicadas)
+
+                                val clavesFavoritas = almacenamientoApp.cargarFavoritosClaves(correoSesionActiva)
+                                mascotasFavoritas.clear()
+                                mascotasFavoritas.addAll(
+                                    mascotas.filter { pet ->
+                                        pet.esRemota && clavesFavoritas.contains(pet.claveCompose)
+                                    }
+                                )
                             }
 
                         } catch (e: Exception) {
+                            cargandoCatalogo = false
+                            errorCatalogo = e.localizedMessage ?: "Error al conectar con el servidor"
                             Log.e(
                                 "ADOPTME_RETROFIT",
-                                "Error consultando Azure/Neon",
+                                "Error consultando Neon",
                                 e
                             )
                         }
                     }
 
-                    // FASE 1C: Sincronizar publicaciones del usuario autenticado en cuanto inicia sesión
+                    // Sincronizar publicaciones y favoritos del usuario autenticado en cuanto inicia sesión
                     LaunchedEffect(correoSesionActiva) {
                         if (correoSesionActiva.isNotBlank()) {
+                            // Cargar perfil desde cache si aún es nulo
+                            if (usuarioActualSesion == null) {
+                                usuarioActualSesion = almacenamientoApp.cargarPerfilCache(correoSesionActiva)
+                            }
+
+                            // Consultar perfil remoto desde Neon Web API con JWT
+                            try {
+                                val respPerfil = RetrofitClient.usuariosApi.obtenerPerfil()
+                                if (respPerfil.isSuccessful) {
+                                    val perfilRemoto = respPerfil.body()
+                                    if (perfilRemoto != null) {
+                                        val usuarioActualizado = UsuarioRegistrado(
+                                            nombre = perfilRemoto.nombre,
+                                            correo = normalizarCorreoUsuario(perfilRemoto.correo),
+                                            contrasena = "",
+                                            telefono = perfilRemoto.telefono,
+                                            rol = perfilRemoto.rol
+                                        )
+                                        usuarioActualSesion = usuarioActualizado
+                                        almacenamientoApp.guardarPerfilCache(
+                                            correo = correoSesionActiva,
+                                            nombre = perfilRemoto.nombre,
+                                            telefono = perfilRemoto.telefono,
+                                            rol = perfilRemoto.rol,
+                                            id = perfilRemoto.id
+                                        )
+                                        Log.d("ADOPTME_PERFIL", "Perfil de Neon sincronizado: ${perfilRemoto.nombre} (${perfilRemoto.rol})")
+                                    }
+                                } else {
+                                    Log.w("ADOPTME_PERFIL", "No se pudo obtener perfil de Neon. Código: ${respPerfil.code()}")
+                                }
+                            } catch (e: Exception) {
+                                Log.e("ADOPTME_PERFIL", "Error consultando perfil en Neon", e)
+                            }
+
                             try {
                                 val mascotasAzure = RetrofitClient.mascotasApi.obtenerMascotas()
                                 val mascotasRemotas = mascotasAzure.map { it.toPet() }
 
-                                mascotasRemotas.forEach { mascotaNueva ->
-                                    val indiceExistente = mascotas.indexOfFirst {
-                                        it.esRemota && it.id == mascotaNueva.id
-                                    }
-                                    if (indiceExistente >= 0) {
-                                        mascotas[indiceExistente] = mascotaNueva
-                                    } else {
-                                        mascotas.add(mascotaNueva)
-                                    }
-                                }
+                                mascotas.clear()
+                                mascotas.addAll(mascotasRemotas)
 
                                 val sincronizadas = sincronizarPublicacionesUsuario(
                                     correoUsuario = correoSesionActiva,
@@ -177,16 +210,20 @@ class MainActivity : ComponentActivity() {
                                 mascotasPublicadas.addAll(sincronizadas)
                                 almacenamientoMascotas.guardarMascotas(mascotasPublicadas)
 
+                                val clavesFavoritas = almacenamientoApp.cargarFavoritosClaves(correoSesionActiva)
+                                mascotasFavoritas.clear()
+                                mascotasFavoritas.addAll(
+                                    mascotas.filter { pet ->
+                                        pet.esRemota && clavesFavoritas.contains(pet.claveCompose)
+                                    }
+                                )
+
                                 Log.d("ADOPTME_SYNC", "Sincronización completada para publicaciones del usuario: ${sincronizadas.size}")
                             } catch (e: Exception) {
                                 Log.e("ADOPTME_SYNC", "Error al sincronizar publicaciones con Neon", e)
                             }
                         }
                     }
-
-                    val mascotasFavoritas = remember { mutableStateListOf<Pet>() }
-                    val notificaciones = remember { mutableStateListOf<NotificationItem>() }
-                    val solicitudesAdopcion = remember { mutableStateListOf<AdoptionRequest>() }
 
                     // Estados de navegación para detalle y adopción
                     var mascotaSeleccionada by remember { mutableStateOf<Pet?>(null) }
@@ -235,6 +272,7 @@ class MainActivity : ComponentActivity() {
                             putExtra("description", pet.description)
                             putExtra("image", pet.image)
                             putExtra("creadoPorCorreo", pet.creadoPorCorreo)
+                            putExtra("esRemota", pet.esRemota)
                         }
                         launcherDetalle.launch(intent)
                     }
@@ -563,7 +601,7 @@ class MainActivity : ComponentActivity() {
                                 )
                             } else {
                                 PantallaInicioSesion(
-                                    iniciarSesion = { rol, correoLogueado, token ->
+                                    iniciarSesion = { rol, correoLogueado, token, nombreLogueado, telefonoLogueado ->
                                         tokenSesion = token
                                         // NUEVO: Guardar el token localmente para que Retrofit lo use
                                         preferencias.guardarTokenSesionActiva(token)
@@ -575,9 +613,20 @@ class MainActivity : ComponentActivity() {
                                         val correoNorm = normalizarCorreoUsuario(correoLogueado)
                                         correoSesionActiva = correoNorm
                                         rolUsuario = rol
-                                        usuarioActualSesion = usuariosRegistrados.find {
-                                            normalizarCorreoUsuario(it.correo) == correoNorm
-                                        }
+                                        val usuarioAutenticado = UsuarioRegistrado(
+                                            nombre = nombreLogueado,
+                                            correo = correoNorm,
+                                            contrasena = "",
+                                            telefono = telefonoLogueado,
+                                            rol = rol
+                                        )
+                                        usuarioActualSesion = usuarioAutenticado
+                                        almacenamientoApp.guardarPerfilCache(
+                                            correo = correoNorm,
+                                            nombre = nombreLogueado,
+                                            telefono = telefonoLogueado,
+                                            rol = rol
+                                        )
 
                                         // Cargar preferencias del usuario
                                         temaSeleccionado = preferencias.obtenerTema(correoNorm)
@@ -591,9 +640,14 @@ class MainActivity : ComponentActivity() {
                                         notificarAdopciones = preferencias.obtenerNotificacionesAdopciones(correoNorm)
                                         notificarMensajes = preferencias.obtenerNotificacionesMensajes(correoNorm)
 
-                                        // Cargar datos aislados
-                                        val idsFavoritos = almacenamientoApp.cargarFavoritos(correoNorm)
-                                        mascotasFavoritas.addAll(mascotas.filter { idsFavoritos.contains(it.id) })
+                                        // Cargar datos aislados (favoritos con identificadores unívocos para mascotas remotas)
+                                        val clavesFavoritas = almacenamientoApp.cargarFavoritosClaves(correoNorm)
+                                        mascotasFavoritas.clear()
+                                        mascotasFavoritas.addAll(
+                                            mascotas.filter { pet ->
+                                                pet.esRemota && clavesFavoritas.contains(pet.claveCompose)
+                                            }
+                                        )
                                         notificaciones.addAll(almacenamientoApp.cargarNotificaciones(correoNorm))
 
                                         if (rol == "Admin") {
@@ -666,7 +720,7 @@ class MainActivity : ComponentActivity() {
                         else -> {
                             val correoUsuarioActivo = normalizarCorreoUsuario(
                                 correoSesionActiva.ifBlank {
-                                    usuarioActualSesion?.correo ?: if (rolUsuario == "Adoptante") "usuario@adoptme.com" else ""
+                                    usuarioActualSesion?.correo ?: ""
                                 }
                             )
 
@@ -674,7 +728,15 @@ class MainActivity : ComponentActivity() {
                                 correoUsuarioActivo = correoUsuarioActivo,
                                 usuarioActualSesion = usuarioActualSesion,
                                 usuariosRegistrados = usuariosRegistrados,
-                                actualizarUsuarioSesion = { usuarioActualSesion = it },
+                                actualizarUsuarioSesion = {
+                                    usuarioActualSesion = it
+                                    almacenamientoApp.guardarPerfilCache(
+                                        correo = it.correo,
+                                        nombre = it.nombre,
+                                        telefono = it.telefono,
+                                        rol = it.rol
+                                    )
+                                },
                                 mascotas = mascotas,
                                 mascotasPublicadas = mascotasPublicadas,
                                 mascotasFavoritas = mascotasFavoritas,
@@ -730,7 +792,10 @@ class MainActivity : ComponentActivity() {
                                 mostrarPantallaAdopcion = mostrarPantallaAdopcion,
                                 cambiarMostrarPantallaAdopcion = { mostrarPantallaAdopcion = it },
                                 abrirDetalleActivity = abrirDetalleActivity,
-                                cerrarSesion = manejarCerrarSesion
+                                cerrarSesion = manejarCerrarSesion,
+                                cargandoCatalogo = cargandoCatalogo,
+                                errorCatalogo = errorCatalogo,
+                                reintentarCargaCatalogo = { recargarCatalogoTrigger++ }
                             )
                         }
                     }

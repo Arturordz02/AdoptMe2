@@ -2,6 +2,7 @@ package com.example.adoptme.AdoptMe
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,6 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import com.example.adoptme.data.remote.RetrofitClient
 import com.example.adoptme.data.remote.toDto
+import com.example.adoptme.data.remote.toCrearSolicitudDto
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -83,6 +85,9 @@ fun PantallaPrincipalAdoptante(
     cambiarMostrarPantallaAdopcion: (Boolean) -> Unit,
     abrirDetalleActivity: (Pet) -> Unit,
     cerrarSesion: () -> Unit,
+    cargandoCatalogo: Boolean = false,
+    errorCatalogo: String? = null,
+    reintentarCargaCatalogo: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var pantallaSeleccionada by remember { mutableStateOf("home") }
@@ -95,7 +100,7 @@ fun PantallaPrincipalAdoptante(
     Scaffold(
         modifier = modifier,
         bottomBar = {
-            if (mascotaSeleccionada == null && !mostrarPantallaAdopcion && !mostrarPantallaExito) {
+            if (!mostrarPantallaAdopcion && !mostrarPantallaExito) {
                 BarraNavegacionInferior(
                     pantalla = pantallaSeleccionada,
                     cambiarPantalla = { pantalla ->
@@ -106,7 +111,11 @@ fun PantallaPrincipalAdoptante(
             }
         }
     ) { rellenoInterior ->
-        Box(modifier = Modifier.padding(rellenoInterior)) {
+        Box(
+            modifier = Modifier
+                .padding(rellenoInterior)
+                .consumeWindowInsets(rellenoInterior)
+        ) {
             when {
                 // 1. Pantalla de Éxito al completar una solicitud
                 mostrarPantallaExito && mascotaSeleccionada != null -> {
@@ -130,46 +139,124 @@ fun PantallaPrincipalAdoptante(
                         mascota = mascotaSeleccionada,
                         volver = {
                             cambiarMostrarPantallaAdopcion(false)
+                            cambiarMascotaSeleccionada(null)
                         },
                         esPublicacionPropia = esMascotaPropia,
                         correoUsuarioActual = correoUsuarioActivo,
-                        enviar = { solicitud ->
-                            if (esMascotaPropia) return@PantallaAdopcion
-
-                            // Forzar siempre el correo normalizado de la sesión activa, ignorando cualquier correo del formulario
-                            val correoSolicitante = normalizarCorreoUsuario(correoUsuarioActivo)
-
-                            // Validación de solicitudes duplicadas activas
-                            val yaExisteSolicitudActiva = almacenamientoApp.cargarSolicitudesGenerales().any { req ->
-                                val coincideMascota = (req.petId != 0 && req.petId == mascotaSeleccionada.id) ||
-                                        req.petName.equals(mascotaSeleccionada.name, ignoreCase = true)
-                                val coincidePostulante = normalizarCorreoUsuario(req.email) == correoSolicitante
-                                val esActiva = req.status.equals("Pendiente", ignoreCase = true) ||
-                                        req.status.equals("En revisión", ignoreCase = true)
-                                coincideMascota && coincidePostulante && esActiva
+                        enviar = { solicitud, onCompleto ->
+                            if (esMascotaPropia) {
+                                onCompleto(false, "No puedes solicitar la adopción de una mascota publicada por ti.")
+                                return@PantallaAdopcion
                             }
 
-                            if (yaExisteSolicitudActiva) return@PantallaAdopcion
+                            // Forzar siempre el correo normalizado de la sesión activa
+                            val correoSolicitante = normalizarCorreoUsuario(correoUsuarioActivo)
 
-                            if (mascotaSeleccionada.status.equals("Disponible", ignoreCase = true)) {
-                                val solicitudFinal = solicitud.copy(
-                                    petId = if (solicitud.petId == 0) mascotaSeleccionada.id else solicitud.petId,
-                                    email = correoSolicitante
-                                )
+                            // REGLA FASE 2C: Solo una mascota confirmada como remota (esRemota == true e id > 0)
+                            // se envía a Neon vía Retrofit. Las mascotas puramente locales o de demo se mantienen localmente.
+                            val esConfirmadaRemota = mascotaSeleccionada.esRemota && mascotaSeleccionada.id > 0
 
-                                solicitudesAdopcion.add(solicitudFinal)
-                                almacenamientoApp.actualizarEstadoSolicitud(solicitudFinal)
+                            if (esConfirmadaRemota) {
+                                coroutineScope.launch {
+                                    try {
+                                        val reqDto = solicitud.toCrearSolicitudDto(mascotaSeleccionada.id)
+                                        val respuesta = RetrofitClient.solicitudesApi.crearSolicitud(reqDto)
 
-                                if (notificarAdopciones) {
-                                    val notifSol = NotificationItem(
-                                        title = "Solicitud enviada",
-                                        message = "Tu solicitud para adoptar a ${solicitudFinal.petName} fue registrada correctamente."
-                                    )
-                                    notificaciones.add(0, notifSol)
-                                    almacenamientoApp.guardarNotificaciones(correoSolicitante, notificaciones)
+                                        if (respuesta.isSuccessful && respuesta.body() != null) {
+                                            val body = respuesta.body()!!
+                                            // Registramos la copia local identificada con el ID real devuelto por Neon
+                                            val solicitudConfirmada = solicitud.copy(
+                                                id = body.id,
+                                                petId = body.mascotaId,
+                                                email = correoSolicitante,
+                                                status = body.status
+                                            )
+
+                                            solicitudesAdopcion.add(solicitudConfirmada)
+                                            almacenamientoApp.actualizarEstadoSolicitud(solicitudConfirmada)
+
+                                            if (notificarAdopciones) {
+                                                val notifSol = NotificationItem(
+                                                    title = "Solicitud enviada",
+                                                    message = "Tu solicitud para adoptar a ${solicitudConfirmada.petName} fue registrada en el servidor."
+                                                )
+                                                notificaciones.add(0, notifSol)
+                                                almacenamientoApp.guardarNotificaciones(correoSolicitante, notificaciones)
+                                            }
+
+                                            Toast.makeText(contexto, "Solicitud enviada con éxito.", Toast.LENGTH_SHORT).show()
+                                            onCompleto(true, null)
+                                            mostrarPantallaExito = true
+                                        } else {
+                                            val errorMsg = when (respuesta.code()) {
+                                                400 -> {
+                                                    val detalle = try { respuesta.errorBody()?.string() } catch (_: Exception) { null }
+                                                    if (detalle?.contains("publicada por ti", ignoreCase = true) == true) {
+                                                        "No puedes solicitar la adopción de una mascota publicada por ti."
+                                                    } else if (detalle?.contains("disponible", ignoreCase = true) == true) {
+                                                        "La mascota ya no está disponible para adopción."
+                                                    } else {
+                                                        "No se pudo registrar la solicitud. Verifica los datos enviados."
+                                                    }
+                                                }
+                                                401 -> "Sesión expirada o no autorizada. Inicia sesión nuevamente."
+                                                403 -> "No tienes autorización para realizar esta solicitud."
+                                                404 -> "La mascota ya no existe en el servidor."
+                                                409 -> "Ya cuentas con una solicitud activa o aprobada para esta mascota."
+                                                else -> "No se pudo registrar la solicitud en el servidor (Código: ${respuesta.code()})."
+                                            }
+                                            Toast.makeText(contexto, errorMsg, Toast.LENGTH_LONG).show()
+                                            onCompleto(false, errorMsg)
+                                        }
+                                    } catch (e: Exception) {
+                                        val errorMsg = "No se pudo conectar con el servidor. Revisa tu conexión a Internet."
+                                        Toast.makeText(contexto, errorMsg, Toast.LENGTH_LONG).show()
+                                        onCompleto(false, errorMsg)
+                                    }
+                                }
+                            } else {
+                                // Flujo local para mascotas puramente demostrativas
+                                val yaExisteSolicitudActiva = almacenamientoApp.cargarSolicitudesGenerales().any { req ->
+                                    val coincideMascota = (req.petId != 0 && req.petId == mascotaSeleccionada.id) ||
+                                            req.petName.equals(mascotaSeleccionada.name, ignoreCase = true)
+                                    val coincidePostulante = normalizarCorreoUsuario(req.email) == correoSolicitante
+                                    val esActiva = req.status.equals("Pendiente", ignoreCase = true) ||
+                                            req.status.equals("En revisión", ignoreCase = true)
+                                    coincideMascota && coincidePostulante && esActiva
                                 }
 
-                                mostrarPantallaExito = true
+                                if (yaExisteSolicitudActiva) {
+                                    val errorMsg = "Ya cuentas con una solicitud activa para esta mascota."
+                                    Toast.makeText(contexto, errorMsg, Toast.LENGTH_LONG).show()
+                                    onCompleto(false, errorMsg)
+                                    return@PantallaAdopcion
+                                }
+
+                                if (mascotaSeleccionada.status.equals("Disponible", ignoreCase = true)) {
+                                    val solicitudFinal = solicitud.copy(
+                                        petId = if (solicitud.petId == 0) mascotaSeleccionada.id else solicitud.petId,
+                                        email = correoSolicitante
+                                    )
+
+                                    solicitudesAdopcion.add(solicitudFinal)
+                                    almacenamientoApp.actualizarEstadoSolicitud(solicitudFinal)
+
+                                    if (notificarAdopciones) {
+                                        val notifSol = NotificationItem(
+                                            title = "Solicitud enviada",
+                                            message = "Tu solicitud para adoptar a ${solicitudFinal.petName} fue registrada correctamente."
+                                        )
+                                        notificaciones.add(0, notifSol)
+                                        almacenamientoApp.guardarNotificaciones(correoSolicitante, notificaciones)
+                                    }
+
+                                    onCompleto(true, null)
+                                    mostrarPantallaExito = true
+                                } else {
+                                    val errorMsg = "Esta mascota no está disponible para nuevas solicitudes."
+                                    Toast.makeText(contexto, errorMsg, Toast.LENGTH_LONG).show()
+                                    onCompleto(false, errorMsg)
+                                }
                             }
                         }
                     )
@@ -190,11 +277,16 @@ fun PantallaPrincipalAdoptante(
                                     abrirDetalleActivity(mascota)
                                 },
                                 cambiarFavorito = { mascota ->
-                                    if (mascotasFavoritas.contains(mascota)) {
-                                        mascotasFavoritas.remove(mascota)
+                                    val indice = mascotasFavoritas.indexOfFirst { it.claveCompose == mascota.claveCompose }
+                                    if (indice >= 0) {
+                                        mascotasFavoritas.removeAt(indice)
                                     } else {
                                         mascotasFavoritas.add(mascota)
                                     }
+                                    almacenamientoApp.guardarFavoritosClaves(
+                                        correoUsuarioActivo,
+                                        mascotasFavoritas.map { it.claveCompose }
+                                    )
                                     almacenamientoApp.guardarFavoritos(
                                         correoUsuarioActivo,
                                         mascotasFavoritas.map { it.id }
@@ -211,7 +303,10 @@ fun PantallaPrincipalAdoptante(
                                         cambiarMascotaSeleccionada(mascota)
                                         cambiarMostrarPantallaAdopcion(true)
                                     }
-                                }
+                                },
+                                cargando = cargandoCatalogo,
+                                errorConexion = errorCatalogo,
+                                reintentarCarga = reintentarCargaCatalogo
                             )
                         }
 
@@ -564,19 +659,23 @@ fun PantallaPrincipalAdoptante(
                                         cerrarSesion = cerrarSesion,
                                         guardarPerfil = { nuevoNombre, _, nuevoTelefono ->
                                             val actual = usuarioActualSesion
-                                            if (actual != null) {
-                                                val actualizado = actual.copy(
-                                                    nombre = nuevoNombre,
-                                                    correo = actual.correo,
-                                                    telefono = nuevoTelefono
-                                                )
-                                                actualizarUsuarioSesion(actualizado)
-                                                val indice = usuariosRegistrados.indexOfFirst {
-                                                    normalizarCorreoUsuario(it.correo) == normalizarCorreoUsuario(actual.correo)
-                                                }
-                                                if (indice != -1) {
-                                                    usuariosRegistrados[indice] = actualizado
-                                                }
+                                            val correoEfectivo = actual?.correo ?: correoUsuarioActivo
+                                            val actualizado = (actual ?: UsuarioRegistrado(
+                                                nombre = nuevoNombre,
+                                                correo = correoEfectivo,
+                                                contrasena = "",
+                                                telefono = nuevoTelefono,
+                                                rol = "Adoptante"
+                                            )).copy(
+                                                nombre = nuevoNombre,
+                                                telefono = nuevoTelefono
+                                            )
+                                            actualizarUsuarioSesion(actualizado)
+                                            val indice = usuariosRegistrados.indexOfFirst {
+                                                normalizarCorreoUsuario(it.correo) == normalizarCorreoUsuario(correoEfectivo)
+                                            }
+                                            if (indice != -1) {
+                                                usuariosRegistrados[indice] = actualizado
                                             }
                                         }
                                     )

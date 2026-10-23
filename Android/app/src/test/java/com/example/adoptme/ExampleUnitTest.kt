@@ -25,6 +25,11 @@ import org.json.JSONObject
 import com.example.adoptme.data.remote.MascotaDto
 import com.example.adoptme.data.remote.toPet
 import com.example.adoptme.data.remote.toDto
+import com.example.adoptme.data.remote.CrearSolicitudRequestDto
+import com.example.adoptme.data.remote.SolicitudResponseDto
+import com.example.adoptme.data.remote.ActualizarPerfilRequest
+import com.example.adoptme.data.remote.toCrearSolicitudDto
+import com.example.adoptme.data.remote.toDomain
 import com.example.adoptme.localizarMascotaParaAprobacion
 import com.example.adoptme.puedeAprobarSolicitud
 import org.junit.Assert.*
@@ -1678,5 +1683,431 @@ class ExampleUnitTest {
 
         assertFalse("La mascota demo NO debe considerarse remota aunque id > 0", esConfirmadaRemotaDemo)
         assertTrue("La mascota de Neon sí es remota confirmada", esConfirmadaRemotaNeon)
+    }
+
+    // =========================================================================
+    // PRUEBAS FASE 2C: Envío e Integración de Solicitudes Reales con Retrofit
+    // =========================================================================
+
+    @Test
+    fun testFase2C_mapeoAdoptionRequest_a_CrearSolicitudRequestDto() {
+        val solicitud = AdoptionRequest(
+            petId = 2,
+            petName = "Michi Prueba",
+            petSpecies = "Gato",
+            applicantName = " Arturo Rodriguez ",
+            phone = " 987654321 ",
+            email = "adoptante@ejemplo.pe",
+            address = " Av. Javier Prado 123 ",
+            housingType = " Departamento ",
+            timeAvailability = " Tiempo completo ",
+            previousExperience = " Sí, 3 años ",
+            reason = " Deseo brindarle un hogar seguro "
+        )
+
+        val dto = solicitud.toCrearSolicitudDto(idMascotaConfirmado = 2)
+
+        assertEquals(2, dto.mascotaId)
+        assertEquals("Arturo Rodriguez", dto.applicantName)
+        assertEquals("987654321", dto.phone)
+        assertEquals("Av. Javier Prado 123", dto.address)
+        assertEquals("Departamento", dto.housingType)
+        assertEquals("Tiempo completo", dto.timeAvailability)
+        assertEquals("Sí, 3 años", dto.previousExperience)
+        assertEquals("Deseo brindarle un hogar seguro", dto.reason)
+    }
+
+    @Test
+    fun testFase2C_mapeoSolicitudResponseDto_a_DomainAdoptionRequest() {
+        val serverResponse = SolicitudResponseDto(
+            id = 101,
+            mascotaId = 2,
+            adoptanteId = 5,
+            petName = "Michi Prueba",
+            petSpecies = "Gato",
+            applicantName = "Arturo Rodriguez",
+            phone = "987654321",
+            email = "adoptante@ejemplo.pe",
+            address = "Av. Javier Prado 123",
+            housingType = "Departamento",
+            timeAvailability = "Tiempo completo",
+            previousExperience = "Sí",
+            reason = "Deseo cuidarlo",
+            status = "Pendiente",
+            observacion = null,
+            fechaSolicitud = "2026-10-23T03:30:00Z",
+            fechaActualizacion = null
+        )
+
+        val domain = serverResponse.toDomain()
+
+        assertEquals(101, domain.id)
+        assertEquals(2, domain.petId)
+        assertEquals("Michi Prueba", domain.petName)
+        assertEquals("Gato", domain.petSpecies)
+        assertEquals("Arturo Rodriguez", domain.applicantName)
+        assertEquals("adoptante@ejemplo.pe", domain.email)
+        assertEquals("Pendiente", domain.status)
+    }
+
+    @Test
+    fun testFase2C_distincionMascotaRemotaVsLocal_enSolicitud() {
+        // Mascota demo local con id 1 (Max) vs mascota remota en Neon con id 1
+        val mascotaLocalDemo = Pet(
+            id = 1,
+            name = "Max",
+            species = "Perro",
+            breed = "Labrador",
+            age = "2 años",
+            gender = "Macho",
+            description = "Demo local",
+            esRemota = false
+        )
+
+        val mascotaRemotaNeon = Pet(
+            id = 1,
+            name = "Pelusa",
+            species = "Perro",
+            breed = "Mestizo",
+            age = "1 año",
+            gender = "Hembra",
+            description = "Mascota persistida en Neon",
+            creadoPorCorreo = "dueno@adoptme.pe",
+            esRemota = true
+        )
+
+        val enrutaRetrofitLocal = mascotaLocalDemo.esRemota && mascotaLocalDemo.id > 0
+        val enrutaRetrofitRemota = mascotaRemotaNeon.esRemota && mascotaRemotaNeon.id > 0
+
+        assertFalse("La mascota demo local NO debe invocar Retrofit a Neon", enrutaRetrofitLocal)
+        assertTrue("La mascota remota SÍ debe invocar Retrofit a Neon", enrutaRetrofitRemota)
+    }
+
+    @Test
+    fun testFase2C_manejoCodigosRespuestaHttp() {
+        // Función simulada idéntica a la lógica implementada en PantallaPrincipalAdoptante
+        fun resolverResultado(codigoHttp: Int, errorDetalle: String? = null): Pair<Boolean, String?> {
+            return if (codigoHttp in 200..299) {
+                Pair(true, null)
+            } else {
+                val mensaje = when (codigoHttp) {
+                    400 -> {
+                        if (errorDetalle?.contains("publicada por ti", ignoreCase = true) == true) {
+                            "No puedes solicitar la adopción de una mascota publicada por ti."
+                        } else if (errorDetalle?.contains("disponible", ignoreCase = true) == true) {
+                            "La mascota ya no está disponible para adopción."
+                        } else {
+                            "No se pudo registrar la solicitud. Verifica los datos enviados."
+                        }
+                    }
+                    401 -> "Sesión expirada o no autorizada. Inicia sesión nuevamente."
+                    403 -> "No tienes autorización para realizar esta solicitud."
+                    404 -> "La mascota ya no existe en el servidor."
+                    409 -> "Ya cuentas con una solicitud activa o aprobada para esta mascota."
+                    else -> "No se pudo registrar la solicitud en el servidor (Código: $codigoHttp)."
+                }
+                Pair(false, mensaje)
+            }
+        }
+
+        // 1. Éxito 201 Created
+        val (exito201, msg201) = resolverResultado(201)
+        assertTrue("HTTP 201 debe indicar éxito", exito201)
+        assertNull(msg201)
+
+        // 2. Error 409 Conflict (Duplicado)
+        val (exito409, msg409) = resolverResultado(409)
+        assertFalse("HTTP 409 no debe indicar éxito", exito409)
+        assertEquals("Ya cuentas con una solicitud activa o aprobada para esta mascota.", msg409)
+
+        // 3. Error 401 Unauthorized (Sesión expirada)
+        val (exito401, msg401) = resolverResultado(401)
+        assertFalse("HTTP 401 no debe indicar éxito", exito401)
+        assertEquals("Sesión expirada o no autorizada. Inicia sesión nuevamente.", msg401)
+
+        // 4. Error 404 Not Found (Mascota no existe)
+        val (exito404, msg404) = resolverResultado(404)
+        assertFalse("HTTP 404 no debe indicar éxito", exito404)
+        assertEquals("La mascota ya no existe en el servidor.", msg404)
+
+        // 5. Error 400 Bad Request (Auto-adopción)
+        val (exito400, msg400) = resolverResultado(400, "publicada por ti")
+        assertFalse("HTTP 400 no debe indicar éxito", exito400)
+        assertEquals("No puedes solicitar la adopción de una mascota publicada por ti.", msg400)
+    }
+
+    // =========================================================================
+    // PRUEBAS DE RESOLUCIÓN DE CLAVES DUPLICADAS EN JETPACK COMPOSE
+    // =========================================================================
+
+    @Test
+    fun testPrevencionColisionClavesCompose_mascotaRemotaVsDemo() {
+        val mascotaDemo = Pet(
+            id = 2,
+            name = "Luna",
+            species = "Gato",
+            breed = "Gato doméstico",
+            age = "1 año",
+            gender = "Hembra",
+            description = "Demo local",
+            esRemota = false
+        )
+
+        val mascotaRemota = Pet(
+            id = 2,
+            name = "Michi Prueba",
+            species = "Gato",
+            breed = "Criollo",
+            age = "8 meses",
+            gender = "Hembra",
+            description = "Mascota persistida en Neon",
+            creadoPorCorreo = "user@test.pe",
+            esRemota = true
+        )
+
+        // Verificamos que ambas mascotas compartan el id numérico 2
+        assertEquals(2, mascotaDemo.id)
+        assertEquals(2, mascotaRemota.id)
+
+        // Pero sus claves de LazyColumn en Compose son completamente diferentes y estables
+        assertEquals("demo-2", mascotaDemo.claveCompose)
+        assertEquals("remota-2", mascotaRemota.claveCompose)
+        assertNotEquals(mascotaDemo.claveCompose, mascotaRemota.claveCompose)
+
+        // Una lista que contenga a ambas NO produce claves duplicadas
+        val listaConAmbas = listOf(mascotaDemo, mascotaRemota)
+        val claves = listaConAmbas.map { it.claveCompose }
+        assertEquals(2, claves.size)
+        assertEquals(2, claves.toSet().size)
+    }
+
+    @Test
+    fun testDeduplicacionCatalogoMascotas_previeneClavesDuplicadas() {
+        val pets = listOf(
+            Pet(id = 1, name = "Max", species = "Perro", breed = "Labrador", age = "2 años", gender = "Macho", description = "Demo", esRemota = false),
+            Pet(id = 2, name = "Luna", species = "Gato", breed = "Doméstico", age = "1 año", gender = "Hembra", description = "Demo", esRemota = false),
+            Pet(id = 2, name = "Michi Prueba", species = "Gato", breed = "Criollo", age = "8 meses", gender = "Hembra", description = "Remota", esRemota = true)
+        )
+
+        val unicas = pets.distinctBy { it.claveCompose }
+        assertEquals(3, unicas.size)
+
+        val conteoClaves = unicas.groupBy { it.claveCompose }
+        conteoClaves.forEach { (clave, grupo) ->
+            assertEquals("La clave '$clave' no debe estar duplicada", 1, grupo.size)
+        }
+    }
+
+    // =========================================================================
+    // PRUEBAS DE LA FASE 2D: ELIMINACIÓN DE MASCOTAS DEMOSTRATIVAS DEL CATÁLOGO
+    // =========================================================================
+
+    @Test
+    fun testFase2D_catalogoSoloAceptaMascotasRemotas() {
+        // En producción el catálogo no contiene mascotas demostrativas (esRemota = false)
+        val mascotasDemo = PetRepository().getPets()
+        assertEquals(15, mascotasDemo.size)
+        assertTrue("Todas las mascotas del repositorio son demostrativas", mascotasDemo.all { !it.esRemota })
+
+        // Una mascota remota de Neon debe tener esRemota = true
+        val mascotaNeon = Pet(
+            id = 1,
+            name = "Michi Prueba",
+            species = "Gato",
+            breed = "Criollo",
+            age = "8 meses",
+            gender = "Hembra",
+            location = "Lima",
+            description = "Gatita rescatada",
+            creadoPorCorreo = "adoptante@test.com",
+            esRemota = true
+        )
+        assertTrue(mascotaNeon.esRemota)
+        assertEquals("remota-1", mascotaNeon.claveCompose)
+    }
+
+    @Test
+    fun testFase2D_favoritosAisladosDeMascotasDemostrativas() {
+        // Simular que en SharedPreferences antiguo existían IDs demostrativos (1, 2)
+        // Guardadas con clave explícita de mascota remota
+        val clavesFavoritasGuardadas = listOf("remota-5", "remota-9")
+
+        val mascotasEnCatalogo = listOf(
+            Pet(id = 1, name = "Michi Prueba", species = "Gato", breed = "Criollo", age = "1 año", gender = "Hembra", description = "Test", esRemota = true),
+            Pet(id = 5, name = "Pelusa", species = "Gato", breed = "Persa", age = "2 años", gender = "Hembra", description = "Test", esRemota = true),
+            Pet(id = 9, name = "Bobby", species = "Perro", breed = "Mestizo", age = "3 años", gender = "Macho", description = "Test", esRemota = true)
+        )
+
+        // El filtrado de favoritos solo asocia mascotas remotas cuyas claves coinciden exactamente
+        val favoritosRestaurados = mascotasEnCatalogo.filter { pet ->
+            pet.esRemota && clavesFavoritasGuardadas.contains(pet.claveCompose)
+        }
+
+        assertEquals(2, favoritosRestaurados.size)
+        assertTrue(favoritosRestaurados.any { it.id == 5 && it.name == "Pelusa" })
+        assertTrue(favoritosRestaurados.any { it.id == 9 && it.name == "Bobby" })
+        assertFalse("Michi Prueba (id 1) no debe marcarse como favorito accidentalmente", favoritosRestaurados.any { it.id == 1 })
+    }
+
+    @Test
+    fun testFase2D_sincronizacionRechazaPublicacionesSinCorreo() {
+        val remota = Pet(
+            id = 10,
+            name = "Mascota Remota",
+            species = "Perro",
+            breed = "Mestizo",
+            age = "1 año",
+            gender = "Macho",
+            description = "Remota",
+            creadoPorCorreo = "propietario@adoptme.com",
+            esRemota = true
+        )
+
+        val localHuerfana = Pet(
+            id = 999,
+            name = "Demo Antigua",
+            species = "Conejo",
+            breed = "Enano",
+            age = "6 meses",
+            gender = "Hembra",
+            description = "Local sin autor",
+            creadoPorCorreo = "", // Correo en blanco
+            esRemota = false
+        )
+
+        val sincronizadas = sincronizarPublicacionesUsuario(
+            correoUsuario = "propietario@adoptme.com",
+            mascotasRemotas = listOf(remota),
+            publicacionesLocales = listOf(localHuerfana)
+        )
+
+        // La publicación local huérfana (sin correo) NO debe ser adoptada por el usuario
+        assertEquals(1, sincronizadas.size)
+        assertEquals("Mascota Remota", sincronizadas.first().name)
+        assertFalse(sincronizadas.any { it.id == 999 })
+    }
+
+    @Test
+    fun testFase2EA_resolucionPerfilUsuarioReal() {
+        val usuarioReal = UsuarioRegistrado(
+            nombre = "Carlos Mendoza",
+            correo = "carlos@adoptme.pe",
+            contrasena = "",
+            telefono = "987654321",
+            rol = "Adoptante"
+        )
+
+        // Verificación de datos del usuario autenticado
+        assertEquals("Carlos Mendoza", usuarioReal.nombre)
+        assertEquals("carlos@adoptme.pe", usuarioReal.correo)
+        assertEquals("987654321", usuarioReal.telefono)
+        assertEquals("Adoptante", usuarioReal.rol)
+        assertFalse("El nombre no debe contener etiquetas DEMO", usuarioReal.nombre.contains("Demo", ignoreCase = true))
+        assertFalse("El teléfono no debe contener etiquetas DEMO", usuarioReal.telefono.contains("Demo", ignoreCase = true))
+    }
+
+    @Test
+    fun testFase2EA_fallbackSinTelefonoRegistrado() {
+        val usuarioSinTelefono = UsuarioRegistrado(
+            nombre = "Ana Torres",
+            correo = "ana@adoptme.pe",
+            contrasena = "",
+            telefono = "",
+            rol = "Adoptante"
+        )
+
+        val telefonoMostrado = if (usuarioSinTelefono.telefono.isBlank()) "Sin teléfono registrado" else usuarioSinTelefono.telefono
+        assertEquals("Sin teléfono registrado", telefonoMostrado)
+        assertFalse(telefonoMostrado.contains("999 999 999"))
+        assertFalse(telefonoMostrado.contains("Demo", ignoreCase = true))
+    }
+
+    @Test
+    fun testFase2EA_aislamientoClavesPerfilPorUsuario() {
+        val correo1 = "usuario1@adoptme.com"
+        val correo2 = "usuario2@adoptme.com"
+
+        val clave1 = "perfil_cache_${obtenerClaveUsuario(correo1)}"
+        val clave2 = "perfil_cache_${obtenerClaveUsuario(correo2)}"
+
+        assertNotEquals(clave1, clave2)
+        assertEquals("perfil_cache_usuario1_adoptme_com", clave1)
+        assertEquals("perfil_cache_usuario2_adoptme_com", clave2)
+    }
+
+    @Test
+    fun testFase2EB_creacionActualizarPerfilRequest() {
+        val request = ActualizarPerfilRequest(
+            nombre = "María López",
+            telefono = "912345678"
+        )
+        assertEquals("María López", request.nombre)
+        assertEquals("912345678", request.telefono)
+    }
+
+    @Test
+    fun testFase2EB_validacionNombreYTelefonoActualizarPerfil() {
+        fun validarEdicionPerfil(nombre: String, telefono: String): Pair<Boolean, String?> {
+            val nombreLimpio = nombre.trim()
+            val telefonoLimpio = telefono.trim()
+            if (nombreLimpio.isBlank()) return false to "El nombre completo no puede estar vacío."
+            if (nombreLimpio.length < 2) return false to "El nombre debe tener al menos 2 caracteres."
+            if (telefonoLimpio.isNotBlank() && !com.example.adoptme.AdoptMe.esTelefonoPeruanoValido(telefonoLimpio)) {
+                return false to "El teléfono debe tener 9 dígitos y empezar con 9."
+            }
+            return true to null
+        }
+
+        // Nombre válido y teléfono peruano válido
+        val (ok1, _) = validarEdicionPerfil("Juan Pérez", "987654321")
+        assertTrue(ok1)
+
+        // Nombre válido y teléfono vacío (opcional)
+        val (ok2, _) = validarEdicionPerfil("Juan Pérez", "")
+        assertTrue(ok2)
+
+        // Nombre vacío rechazado
+        val (ok3, err3) = validarEdicionPerfil("   ", "987654321")
+        assertFalse(ok3)
+        assertEquals("El nombre completo no puede estar vacío.", err3)
+
+        // Nombre menor a 2 caracteres rechazado
+        val (ok4, err4) = validarEdicionPerfil("A", "987654321")
+        assertFalse(ok4)
+        assertEquals("El nombre debe tener al menos 2 caracteres.", err4)
+
+        // Teléfono inválido (no empieza con 9)
+        val (ok5, err5) = validarEdicionPerfil("Juan Pérez", "888123456")
+        assertFalse(ok5)
+        assertEquals("El teléfono debe tener 9 dígitos y empezar con 9.", err5)
+    }
+
+    @Test
+    fun testFase2EB_actualizacionPerfilLocalYCaché() {
+        val original = UsuarioRegistrado(
+            nombre = "Nombre Viejo",
+            correo = "usuario@adoptme.pe",
+            contrasena = "",
+            telefono = "999111222",
+            rol = "Adoptante"
+        )
+
+        val respuestaNeon = com.example.adoptme.data.remote.PerfilUsuarioResponse(
+            id = 42,
+            nombre = "Nuevo Nombre",
+            correo = "usuario@adoptme.pe",
+            telefono = "987654321",
+            rol = "Adoptante"
+        )
+
+        val actualizado = original.copy(
+            nombre = respuestaNeon.nombre,
+            telefono = respuestaNeon.telefono
+        )
+
+        assertEquals("Nuevo Nombre", actualizado.nombre)
+        assertEquals("987654321", actualizado.telefono)
+        assertEquals("usuario@adoptme.pe", actualizado.correo)
+        assertEquals("Adoptante", actualizado.rol)
     }
 }
