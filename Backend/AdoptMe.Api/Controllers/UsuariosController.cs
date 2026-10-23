@@ -158,9 +158,52 @@ namespace AdoptMe.Api.Controllers
                 usuario.Id,
                 usuario.Nombre,
                 usuario.Correo,
+                usuario.Telefono,
                 usuario.Rol,
                 token = tokenString,
                 expiracion = expiration
+            });
+        }
+
+        [Authorize]
+        [HttpGet("perfil")]
+        public async Task<IActionResult> ObtenerPerfil()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var emailClaim = User.FindFirst(ClaimTypes.Email)?.Value;
+
+            Usuario? usuario = null;
+
+            if (int.TryParse(userIdClaim, out int userId))
+            {
+                usuario = await _context.Usuarios
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.Id == userId);
+            }
+
+            if (usuario == null && !string.IsNullOrWhiteSpace(emailClaim))
+            {
+                string correo = emailClaim.Trim().ToLowerInvariant();
+                usuario = await _context.Usuarios
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.Correo == correo);
+            }
+
+            if (usuario == null)
+            {
+                return NotFound(new
+                {
+                    mensaje = "Usuario no encontrado."
+                });
+            }
+
+            return Ok(new
+            {
+                usuario.Id,
+                usuario.Nombre,
+                usuario.Correo,
+                usuario.Telefono,
+                usuario.Rol
             });
         }
 
