@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.adoptme.AdoptMe.PantallaDetalleMascota
+import com.example.adoptme.SharedPreferences.Preferencias
 import com.example.adoptme.data.MascotaStorage
 import com.example.adoptme.data.local.AdoptMeDatabase
 import com.example.adoptme.data.local.MascotaVisitadaEntity
@@ -45,6 +46,12 @@ class DetalleMascotaActivity : ComponentActivity() {
 
         val petId = intent.getIntExtra("petId", intent.getIntExtra("id", 0))
         val correoUsuarioActual = intent.getStringExtra("correoUsuarioActual") ?: ""
+
+        val preferencias = Preferencias(this)
+        val correoPref = if (correoUsuarioActual.isNotBlank()) correoUsuarioActual else Preferencias.CUENTA_DEFECTO
+        val temaSeleccionado = preferencias.obtenerTema(correoPref)
+        val colorSeleccionado = preferencias.obtenerColorPrincipal(correoPref)
+        val tamanoTextoSeleccionado = preferencias.obtenerTamanoTexto(correoPref)
 
         val almacenamientoMascotas = MascotaStorage(this)
 
@@ -70,14 +77,18 @@ class DetalleMascotaActivity : ComponentActivity() {
                 status = intent.getStringExtra("status") ?: "Disponible",
                 description = intent.getStringExtra("description") ?: "",
                 image = imgResource,
-                photoBitmap = almacenamientoMascotas.cargarMascotas().find { it.id == petId }?.photoBitmap,
+                photoBitmap = almacenamientoMascotas.cargarMascotas().find {
+                    it.id == petId || it.name.equals(intentName, ignoreCase = true)
+                }?.photoBitmap,
                 creadoPorCorreo = intent.getStringExtra("creadoPorCorreo") ?: "",
                 esRemota = intent.getBooleanExtra("esRemota", petId > 0)
             )
         } else null
 
         // 2. Si no vino en el Intent, buscar en almacenamiento local confirmado
-        val mascotaLocal = almacenamientoMascotas.cargarMascotas().find { it.id == petId }
+        val mascotaLocal = almacenamientoMascotas.cargarMascotas().find {
+            it.id == petId || (intentName != null && it.name.equals(intentName, ignoreCase = true))
+        }
 
         val mascotaInicial = mascotaDesdeIntent ?: mascotaLocal?.let { p ->
             if (p.photoBitmap == null && p.image == 0) {
@@ -88,7 +99,11 @@ class DetalleMascotaActivity : ComponentActivity() {
         }
 
         setContent {
-            AdoptMeTheme {
+            AdoptMeTheme(
+                tema = temaSeleccionado,
+                colorPrincipal = colorSeleccionado,
+                tamanoTexto = tamanoTextoSeleccionado
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -132,7 +147,15 @@ class DetalleMascotaActivity : ComponentActivity() {
                                 val respuesta = RetrofitClient.mascotasApi.obtenerMascotaPorId(petId)
                                 if (respuesta.isSuccessful && respuesta.body() != null) {
                                     val dto = respuesta.body()!!
-                                    mascotaActual = dto.toPet()
+                                    val petMapeada = dto.toPet()
+                                    val localConFoto = almacenamientoMascotas.cargarMascotas().find {
+                                        it.id == petId || it.name.equals(dto.name, ignoreCase = true)
+                                    }
+                                    mascotaActual = if (localConFoto?.photoBitmap != null) {
+                                        petMapeada.copy(photoBitmap = localConFoto.photoBitmap)
+                                    } else {
+                                        petMapeada
+                                    }
                                 }
                             } catch (e: Exception) {
                                 // Error de red o servidor al consultar por ID
@@ -161,7 +184,8 @@ class DetalleMascotaActivity : ComponentActivity() {
                                 Text(
                                     text = "Mascota no encontrada",
                                     style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onBackground
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Button(

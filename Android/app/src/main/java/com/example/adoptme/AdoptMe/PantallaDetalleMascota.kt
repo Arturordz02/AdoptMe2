@@ -1,8 +1,11 @@
 package com.example.adoptme.AdoptMe
 
 import android.content.Intent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -62,9 +66,14 @@ fun PantallaDetalleMascota(
                 Icon(
                     painter = painterResource(id = R.drawable.ic_arrow_back),
                     contentDescription = "Volver",
-                    modifier = Modifier.padding(end = 4.dp).size(18.dp)
+                    modifier = Modifier.padding(end = 4.dp).size(18.dp),
+                    tint = MaterialTheme.colorScheme.primary
                 )
-                Text("Volver")
+                Text(
+                    text = "Volver",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
 
@@ -73,50 +82,46 @@ fun PantallaDetalleMascota(
         )
 
         // FOTO DE LA MASCOTA
-        if (mascota.photoBitmap != null) {
-
-            Image(
-                bitmap = mascota.photoBitmap.asImageBitmap(),
-                contentDescription = "Foto de ${mascota.name}",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(300.dp)
-                    .clip(
-                        RoundedCornerShape(20.dp)
-                    ),
-                contentScale = ContentScale.Crop
-            )
-
-        } else if (mascota.image != 0) {
-
-            Image(
-                painter = painterResource(
-                    id = mascota.image
-                ),
-                contentDescription = "Foto de ${mascota.name}",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(300.dp)
-                    .clip(
-                        RoundedCornerShape(20.dp)
-                    ),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-
-            Image(
-                painter = painterResource(
-                    id = R.drawable.ic_pet_fallback
-                ),
-                contentDescription = "Foto de ${mascota.name}",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(300.dp)
-                    .clip(
-                        RoundedCornerShape(20.dp)
-                    ),
-                contentScale = ContentScale.Crop
-            )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(300.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (mascota.photoBitmap != null) {
+                val bitmap = mascota.photoBitmap
+                // Si la imagen es una captura en miniatura (baja resolución), conservar proporción con Fit
+                // y evitar estirarla pixelándola en toda la pantalla
+                val esImagenPequena = bitmap.width < 500 || bitmap.height < 500
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "Foto de ${mascota.name}",
+                    modifier = if (esImagenPequena) {
+                        Modifier
+                            .fillMaxSize()
+                            .padding(12.dp)
+                    } else {
+                        Modifier.fillMaxSize()
+                    },
+                    contentScale = if (esImagenPequena) ContentScale.Fit else ContentScale.Crop
+                )
+            } else if (mascota.image != 0) {
+                Image(
+                    painter = painterResource(id = mascota.image),
+                    contentDescription = "Foto de ${mascota.name}",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_pet_fallback),
+                    contentDescription = "Foto de ${mascota.name}",
+                    modifier = Modifier.size(100.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
         }
 
         Spacer(
@@ -132,6 +137,8 @@ fun PantallaDetalleMascota(
             Text(
                 text = mascota.name,
                 style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f, fill = false)
             )
             if (esPublicacionPropia) {
@@ -159,7 +166,9 @@ fun PantallaDetalleMascota(
         // RAZA
         Text(
             text = mascota.breed,
-            style = MaterialTheme.typography.titleLarge
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.SemiBold
         )
 
         Spacer(
@@ -169,7 +178,8 @@ fun PantallaDetalleMascota(
         // INFORMACIÓN GENERAL
         Text(
             text = "${mascota.species} • ${mascota.age} • ${mascota.gender}",
-            style = MaterialTheme.typography.bodyLarge
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Spacer(
@@ -179,7 +189,8 @@ fun PantallaDetalleMascota(
         // UBICACIÓN
         Text(
             text = "📍 ${mascota.location}",
-            style = MaterialTheme.typography.bodyLarge
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Spacer(
@@ -188,7 +199,12 @@ fun PantallaDetalleMascota(
 
         // ESTADO
         Card(
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
         ) {
 
             Column(
@@ -197,7 +213,9 @@ fun PantallaDetalleMascota(
 
                 Text(
                     text = "Estado",
-                    style = MaterialTheme.typography.labelLarge
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium
                 )
 
                 Spacer(
@@ -219,7 +237,9 @@ fun PantallaDetalleMascota(
                         else ->
                             mascota.status
                     },
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
@@ -231,7 +251,9 @@ fun PantallaDetalleMascota(
         // DESCRIPCIÓN
         Text(
             text = "Sobre ${mascota.name}",
-            style = MaterialTheme.typography.headlineSmall
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
         )
 
         Spacer(
@@ -240,7 +262,8 @@ fun PantallaDetalleMascota(
 
         Text(
             text = mascota.description,
-            style = MaterialTheme.typography.bodyLarge
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface
         )
 
         Spacer(
@@ -279,21 +302,37 @@ fun PantallaDetalleMascota(
         ) {
             Button(
                 onClick = adoptar,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.ic_paw),
                     contentDescription = null,
-                    modifier = Modifier.padding(end = 8.dp).size(20.dp)
+                    modifier = Modifier.padding(end = 8.dp).size(20.dp),
+                    tint = MaterialTheme.colorScheme.onPrimary
                 )
-                Text("Solicitar adopción", fontWeight = FontWeight.Bold)
+                Text(
+                    "Solicitar adopción",
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
             }
         } else {
             Card(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
             ) {
                 Text(
                     text = "Esta mascota actualmente no está disponible para nuevas solicitudes de adopción.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(16.dp)
                 )
             }
@@ -320,14 +359,20 @@ fun PantallaDetalleMascota(
                 val chooser = Intent.createChooser(shareIntent, "Compartir ficha de ${mascota.name}")
                 context.startActivity(chooser)
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
         ) {
             Icon(
                 painter = painterResource(id = R.drawable.ic_share),
                 contentDescription = null,
-                modifier = Modifier.padding(end = 8.dp).size(20.dp)
+                modifier = Modifier.padding(end = 8.dp).size(20.dp),
+                tint = MaterialTheme.colorScheme.primary
             )
-            Text("Compartir ficha", fontWeight = FontWeight.SemiBold)
+            Text(
+                "Compartir ficha",
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
 
         Spacer(

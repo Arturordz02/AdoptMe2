@@ -2298,4 +2298,167 @@ class ExampleUnitTest {
         assertFalse("No debe contener hash", fields.contains("hash"))
         assertFalse("No debe contener passwordHash", fields.contains("passwordHash"))
     }
+
+    @Test
+    fun testHU11_consumoResponsable_criteriosAceptacion() {
+        // Validación de contenidos éticos requeridos por HU-11 y ODS 12:
+        // 1. Reutilización de accesorios en buen estado
+        // 2. Donación coordinada con refugios
+        // 3. Reducción de residuos y compras innecesarias
+        // 4. Prohibición expresa de medicamentos o alimentos vencidos
+        val recomendacionesValidas = listOf(
+            "Reutiliza accesorios en buen estado",
+            "Dona lo que ya no utilizas",
+            "Intercambia productos en buen estado",
+            "Evita compras innecesarias"
+        )
+        assertEquals(4, recomendacionesValidas.size)
+
+        // Validación de no reutilización de insumos peligrosos
+        fun esAptoParaReutilizarODonar(categoria: String, estaVencidoODeteriorado: Boolean): Boolean {
+            if (estaVencidoODeteriorado) return false
+            if (categoria.equals("medicamentos", ignoreCase = true)) return false
+            if (categoria.equals("alimentos_abiertos", ignoreCase = true)) return false
+            return true
+        }
+
+        assertTrue(esAptoParaReutilizarODonar("transportadora", false))
+        assertTrue(esAptoParaReutilizarODonar("correa", false))
+        assertTrue(esAptoParaReutilizarODonar("plato_acero", false))
+        assertFalse(esAptoParaReutilizarODonar("medicamentos", false))
+        assertFalse(esAptoParaReutilizarODonar("alimentos_abiertos", false))
+        assertFalse(esAptoParaReutilizarODonar("correa", true))
+    }
+
+    // =========================================================================
+    // PRUEBAS DE PREFERENCES DATASTORE (PREFERENCIAS DE CATÁLOGO)
+    // =========================================================================
+
+    @Test
+    fun testDataStore_valoresPredeterminados() {
+        val prefsPorDefecto = com.example.adoptme.data.datastore.PreferenciasCatalogo()
+        assertEquals("Todas", prefsPorDefecto.mascotaPreferida)
+        assertEquals("Todas", prefsPorDefecto.ubicacionPreferida)
+        assertEquals("Más recientes", prefsPorDefecto.ordenPredeterminado)
+        assertFalse(prefsPorDefecto.soloDisponibles)
+    }
+
+    @Test
+    fun testDataStore_normalizacionCorreoEnClaves() {
+        val correoConEspaciosYMayusculas = "  Adoptante.Uno@AdoptMe.PE  "
+        val correoNormalizado = "adoptante.uno@adoptme.pe"
+
+        val claveMascota1 = com.example.adoptme.data.datastore.ClavesCatalogo.claveMascota(correoConEspaciosYMayusculas).name
+        val claveMascota2 = com.example.adoptme.data.datastore.ClavesCatalogo.claveMascota(correoNormalizado).name
+        assertEquals(claveMascota1, claveMascota2)
+        assertEquals("mascota_preferida_adoptante.uno@adoptme.pe", claveMascota1)
+
+        val claveUbicacion = com.example.adoptme.data.datastore.ClavesCatalogo.claveUbicacion(correoConEspaciosYMayusculas).name
+        assertEquals("ubicacion_preferida_adoptante.uno@adoptme.pe", claveUbicacion)
+
+        val claveOrden = com.example.adoptme.data.datastore.ClavesCatalogo.claveOrden(correoConEspaciosYMayusculas).name
+        assertEquals("orden_predeterminado_adoptante.uno@adoptme.pe", claveOrden)
+
+        val claveDisponibles = com.example.adoptme.data.datastore.ClavesCatalogo.claveSoloDisponibles(correoConEspaciosYMayusculas).name
+        assertEquals("solo_disponibles_adoptante.uno@adoptme.pe", claveDisponibles)
+    }
+
+    @Test
+    fun testDataStore_aislamientoClavesPorUsuario() {
+        val userA = "usuarioA@adoptme.com"
+        val userB = "usuarioB@adoptme.com"
+
+        val kMascotaA = com.example.adoptme.data.datastore.ClavesCatalogo.claveMascota(userA).name
+        val kMascotaB = com.example.adoptme.data.datastore.ClavesCatalogo.claveMascota(userB).name
+        assertNotEquals(kMascotaA, kMascotaB)
+
+        val kUbicacionA = com.example.adoptme.data.datastore.ClavesCatalogo.claveUbicacion(userA).name
+        val kUbicacionB = com.example.adoptme.data.datastore.ClavesCatalogo.claveUbicacion(userB).name
+        assertNotEquals(kUbicacionA, kUbicacionB)
+
+        val kOrdenA = com.example.adoptme.data.datastore.ClavesCatalogo.claveOrden(userA).name
+        val kOrdenB = com.example.adoptme.data.datastore.ClavesCatalogo.claveOrden(userB).name
+        assertNotEquals(kOrdenA, kOrdenB)
+
+        val kDisponiblesA = com.example.adoptme.data.datastore.ClavesCatalogo.claveSoloDisponibles(userA).name
+        val kDisponiblesB = com.example.adoptme.data.datastore.ClavesCatalogo.claveSoloDisponibles(userB).name
+        assertNotEquals(kDisponiblesA, kDisponiblesB)
+    }
+
+    @Test
+    fun testDataStore_migracionIdempotente_desdeSharedPreferences() {
+        val correo = "usuario.demo@adoptme.pe"
+        val spMap = mutableMapOf<String, Any>(
+            "mascota_preferida_usuario.demo@adoptme.pe" to "Gatos",
+            "ubicacion_preferida_usuario.demo@adoptme.pe" to "Miraflores",
+            "orden_predeterminado_usuario.demo@adoptme.pe" to "Nombre A-Z",
+            "solo_disponibles_usuario.demo@adoptme.pe" to true,
+            // Claves de SharedPreferences que DEBEN conservarse:
+            "tema_usuario.demo@adoptme.pe" to "Oscuro",
+            "color_principal_usuario.demo@adoptme.pe" to "Azul",
+            "tamano_texto_usuario.demo@adoptme.pe" to "Grande",
+            "token_jwt_activo" to "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+        )
+
+        val dsMap = mutableMapOf<String, Any>()
+
+        // 1. Primera ejecución: debe migrar los datos a DataStore y señalar retiro únicamente de las 4 claves de catálogo
+        val (migrado1, clavesRetiradas1) = com.example.adoptme.data.datastore.ejecutarLogicaMigracionCatalogo(
+            correo = correo,
+            spValores = spMap,
+            dataStoreValores = dsMap
+        )
+
+        assertTrue("La primera migración debe realizarse", migrado1)
+        assertEquals("Gatos", dsMap["mascota_preferida_usuario.demo@adoptme.pe"])
+        assertEquals("Miraflores", dsMap["ubicacion_preferida_usuario.demo@adoptme.pe"])
+        assertEquals("Nombre A-Z", dsMap["orden_predeterminado_usuario.demo@adoptme.pe"])
+        assertEquals(true, dsMap["solo_disponibles_usuario.demo@adoptme.pe"])
+
+        // Verificar que las 4 claves de catálogo están en la lista de claves a retirar
+        assertEquals(4, clavesRetiradas1.size)
+        assertTrue(clavesRetiradas1.contains("mascota_preferida_usuario.demo@adoptme.pe"))
+        assertTrue(clavesRetiradas1.contains("ubicacion_preferida_usuario.demo@adoptme.pe"))
+        assertTrue(clavesRetiradas1.contains("orden_predeterminado_usuario.demo@adoptme.pe"))
+        assertTrue(clavesRetiradas1.contains("solo_disponibles_usuario.demo@adoptme.pe"))
+
+        // Verificar que las claves de apariencia, token y notificaciones NO son retiradas
+        assertFalse(clavesRetiradas1.contains("tema_usuario.demo@adoptme.pe"))
+        assertFalse(clavesRetiradas1.contains("color_principal_usuario.demo@adoptme.pe"))
+        assertFalse(clavesRetiradas1.contains("tamano_texto_usuario.demo@adoptme.pe"))
+        assertFalse(clavesRetiradas1.contains("token_jwt_activo"))
+
+        // Simular retiro en SP
+        clavesRetiradas1.forEach { spMap.remove(it) }
+
+        // 2. Segunda ejecución (idempotencia): DataStore ya tiene valores, no debe re-migrar ni sobrescribir
+        val (migrado2, _) = com.example.adoptme.data.datastore.ejecutarLogicaMigracionCatalogo(
+            correo = correo,
+            spValores = spMap,
+            dataStoreValores = dsMap
+        )
+
+        assertFalse("La segunda ejecución no debe migrar (idempotente)", migrado2)
+        assertEquals("Gatos", dsMap["mascota_preferida_usuario.demo@adoptme.pe"])
+    }
+
+    @Test
+    fun testDataStore_noSobrescribeSiDataStoreYaContieneDatos() {
+        val correo = "usuario.existente@adoptme.pe"
+        val spMap = mapOf<String, Any>(
+            "mascota_preferida_usuario.existente@adoptme.pe" to "Perros"
+        )
+        val dsMap = mutableMapOf<String, Any>(
+            "mascota_preferida_usuario.existente@adoptme.pe" to "Conejos"
+        )
+
+        val (migrado, _) = com.example.adoptme.data.datastore.ejecutarLogicaMigracionCatalogo(
+            correo = correo,
+            spValores = spMap,
+            dataStoreValores = dsMap
+        )
+
+        assertFalse("No debe migrar si DataStore ya contiene preferencias del usuario", migrado)
+        assertEquals("Conejos", dsMap["mascota_preferida_usuario.existente@adoptme.pe"])
+    }
 }

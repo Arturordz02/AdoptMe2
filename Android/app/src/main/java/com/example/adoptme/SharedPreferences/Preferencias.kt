@@ -12,6 +12,8 @@ class Preferencias(
             Context.MODE_PRIVATE
         )
 
+    fun obtenerSharedPreferencesInterno(): android.content.SharedPreferences = preferencias
+
     companion object {
         const val CUENTA_DEFECTO = "usuario@adoptme.com"
 

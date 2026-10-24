@@ -23,6 +23,7 @@ import com.example.adoptme.AdoptMe.UsuarioRegistrado
 import com.example.adoptme.SharedPreferences.Preferencias
 import com.example.adoptme.data.AppStorage
 import com.example.adoptme.data.MascotaStorage
+import com.example.adoptme.data.datastore.CatalogoDataStore
 import com.example.adoptme.data.local.AdoptMeDatabase
 import com.example.adoptme.data.local.MascotaVisitadaEntity
 import com.example.adoptme.data.normalizarCorreoUsuario
@@ -53,6 +54,7 @@ class MainActivity : ComponentActivity() {
         val almacenamientoMascotas = MascotaStorage(applicationContext)
         val almacenamientoApp = AppStorage(applicationContext)
         val preferencias = Preferencias(applicationContext)
+        val catalogoDataStore = CatalogoDataStore.obtenerInstancia(applicationContext)
 
         // NUEVO: Conectar Retrofit con SharedPreferences para usar el Token JWT
         RetrofitClient.preferencias = preferencias
@@ -162,6 +164,27 @@ class MainActivity : ComponentActivity() {
                     // Sincronizar publicaciones y favoritos del usuario autenticado en cuanto inicia sesión
                     LaunchedEffect(correoSesionActiva) {
                         if (correoSesionActiva.isNotBlank()) {
+                            // 1. Migración idempotente de catálogo desde SharedPreferences hacia Preferences DataStore
+                            try {
+                                catalogoDataStore.migrarDesdeSharedPreferencesSiEsNecesario(
+                                    correo = correoSesionActiva,
+                                    sharedPreferences = preferencias.obtenerSharedPreferencesInterno()
+                                )
+                            } catch (e: Exception) {
+                                Log.e("DATASTORE_CATALOGO", "Error durante migración de catálogo a DataStore", e)
+                            }
+
+                            // 2. Colectar Preferences DataStore reactivamente sin bloquear el hilo principal
+                            launch {
+                                catalogoDataStore.obtenerPreferencias(correoSesionActiva).collect { prefs ->
+                                    mascotaPreferida = prefs.mascotaPreferida
+                                    ubicacionPreferida = prefs.ubicacionPreferida
+                                    ordenPredeterminado = prefs.ordenPredeterminado
+                                    soloDisponibles = prefs.soloDisponibles
+                                    Log.d("DATASTORE_CATALOGO", "Preferencias DataStore actualizadas: mascota=${prefs.mascotaPreferida}, ubicacion=${prefs.ubicacionPreferida}, orden=${prefs.ordenPredeterminado}, disponibles=${prefs.soloDisponibles}")
+                                }
+                            }
+
                             // Cargar perfil desde cache si aún es nulo
                             if (usuarioActualSesion == null) {
                                 usuarioActualSesion = almacenamientoApp.cargarPerfilCache(correoSesionActiva)
@@ -679,14 +702,10 @@ class MainActivity : ComponentActivity() {
                                             rol = rol
                                         )
 
-                                        // Cargar preferencias del usuario
+                                        // Cargar preferencias del usuario (apariencia y notificaciones en SharedPreferences; catálogo en DataStore)
                                         temaSeleccionado = preferencias.obtenerTema(correoNorm)
                                         colorSeleccionado = preferencias.obtenerColorPrincipal(correoNorm)
                                         tamanoTextoSeleccionado = preferencias.obtenerTamanoTexto(correoNorm)
-                                        mascotaPreferida = preferencias.obtenerMascotaPreferida(correoNorm)
-                                        ubicacionPreferida = preferencias.obtenerUbicacionPreferida(correoNorm)
-                                        ordenPredeterminado = preferencias.obtenerOrdenPredeterminado(correoNorm)
-                                        soloDisponibles = preferencias.obtenerSoloDisponibles(correoNorm)
                                         notificarNuevasMascotas = preferencias.obtenerNotificacionesNuevasMascotas(correoNorm)
                                         notificarAdopciones = preferencias.obtenerNotificacionesAdopciones(correoNorm)
                                         notificarMensajes = preferencias.obtenerNotificacionesMensajes(correoNorm)
@@ -847,7 +866,8 @@ class MainActivity : ComponentActivity() {
                                 cargandoCatalogo = cargandoCatalogo,
                                 errorCatalogo = errorCatalogo,
                                 reintentarCargaCatalogo = { recargarCatalogoTrigger++ },
-                                mascotasVisitadas = mascotasVisitadas
+                                mascotasVisitadas = mascotasVisitadas,
+                                catalogoDataStore = catalogoDataStore
                             )
                         }
                     }

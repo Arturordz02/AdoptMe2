@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import com.example.adoptme.SharedPreferences.Preferencias
 import com.example.adoptme.data.AppStorage
 import com.example.adoptme.data.MascotaStorage
+import com.example.adoptme.data.datastore.CatalogoDataStore
 import com.example.adoptme.data.local.MascotaVisitadaEntity
 import com.example.adoptme.data.normalizarCorreoUsuario
 import com.example.adoptme.model.AdoptionRequest
@@ -90,14 +91,17 @@ fun PantallaPrincipalAdoptante(
     errorCatalogo: String? = null,
     reintentarCargaCatalogo: () -> Unit = {},
     mascotasVisitadas: List<MascotaVisitadaEntity> = emptyList(),
+    catalogoDataStore: CatalogoDataStore? = null,
     modifier: Modifier = Modifier
 ) {
     var pantallaSeleccionada by remember { mutableStateOf("home") }
+    var pantallaPreviaConsumo by remember { mutableStateOf("home") }
     var mostrarPantallaExito by remember { mutableStateOf(false) }
     var mostrarMisPublicaciones by remember { mutableStateOf(false) }
     var mostrarPreferencias by remember { mutableStateOf(false) }
     val contexto = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val dataStore = catalogoDataStore ?: remember { CatalogoDataStore.obtenerInstancia(contexto) }
 
     Scaffold(
         modifier = modifier,
@@ -309,7 +313,11 @@ fun PantallaPrincipalAdoptante(
                                 },
                                 cargando = cargandoCatalogo,
                                 errorConexion = errorCatalogo,
-                                reintentarCarga = reintentarCargaCatalogo
+                                reintentarCarga = reintentarCargaCatalogo,
+                                abrirConsumoResponsable = {
+                                    pantallaPreviaConsumo = "home"
+                                    pantallaSeleccionada = "consumo_responsable"
+                                }
                             )
                         }
 
@@ -453,6 +461,14 @@ fun PantallaPrincipalAdoptante(
                             PantallaNotificaciones(notificaciones = notificaciones)
                         }
 
+                        "consumo_responsable", "consumoResponsable" -> {
+                            PantallaConsumoResponsable(
+                                volver = {
+                                    pantallaSeleccionada = pantallaPreviaConsumo
+                                }
+                            )
+                        }
+
                         "profile" -> {
                             when {
                                 mostrarPreferencias -> {
@@ -481,19 +497,27 @@ fun PantallaPrincipalAdoptante(
                                         },
                                         cambiarMascotaPreferida = { nuevaMascota ->
                                             cambiarMascotaPreferida(nuevaMascota)
-                                            preferencias.guardarMascotaPreferida(correoUsuarioActivo, nuevaMascota)
+                                            coroutineScope.launch {
+                                                dataStore.guardarMascotaPreferida(correoUsuarioActivo, nuevaMascota)
+                                            }
                                         },
                                         cambiarUbicacionPreferida = { nuevaUbicacion ->
                                             cambiarUbicacionPreferida(nuevaUbicacion)
-                                            preferencias.guardarUbicacionPreferida(correoUsuarioActivo, nuevaUbicacion)
+                                            coroutineScope.launch {
+                                                dataStore.guardarUbicacionPreferida(correoUsuarioActivo, nuevaUbicacion)
+                                            }
                                         },
                                         cambiarOrden = { nuevoOrden ->
                                             cambiarOrdenPredeterminado(nuevoOrden)
-                                            preferencias.guardarOrdenPredeterminado(correoUsuarioActivo, nuevoOrden)
+                                            coroutineScope.launch {
+                                                dataStore.guardarOrdenPredeterminado(correoUsuarioActivo, nuevoOrden)
+                                            }
                                         },
                                         cambiarSoloDisponibles = { activado ->
-                                            cambiarSoloDisponibles(activado)
-                                            preferencias.guardarSoloDisponibles(correoUsuarioActivo, activado)
+                                             cambiarSoloDisponibles(activado)
+                                             coroutineScope.launch {
+                                                 dataStore.guardarSoloDisponibles(correoUsuarioActivo, activado)
+                                             }
                                         },
                                         cambiarNotificacionMascotas = { activado ->
                                             cambiarNotificarNuevasMascotas(activado)
@@ -509,6 +533,9 @@ fun PantallaPrincipalAdoptante(
                                         },
                                         restablecer = {
                                             preferencias.restablecerPreferencias(correoUsuarioActivo)
+                                            coroutineScope.launch {
+                                                dataStore.restablecerPreferencias(correoUsuarioActivo)
+                                            }
                                             restablecerPreferencias()
                                         },
                                         volver = {
@@ -655,6 +682,10 @@ fun PantallaPrincipalAdoptante(
                                         },
                                         publicarMascota = {
                                             pantallaSeleccionada = "publish"
+                                        },
+                                        abrirConsumoResponsable = {
+                                            pantallaPreviaConsumo = "profile"
+                                            pantallaSeleccionada = "consumo_responsable"
                                         },
                                         abrirPreferencias = {
                                             mostrarPreferencias = true

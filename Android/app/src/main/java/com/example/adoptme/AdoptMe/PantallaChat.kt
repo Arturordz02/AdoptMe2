@@ -43,16 +43,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.adoptme.model.MensajeChat
-import com.example.adoptme.ui.theme.AdoptCardWhite
-import com.example.adoptme.ui.theme.AdoptMeBg
-import com.example.adoptme.ui.theme.AdoptOrange
-import com.example.adoptme.ui.theme.AdoptOrangeLight
-import com.example.adoptme.ui.theme.AdoptSurfaceVariant
-import com.example.adoptme.ui.theme.AdoptTeal
-import com.example.adoptme.ui.theme.AdoptTealLight
-import com.example.adoptme.ui.theme.AdoptTextDark
-import com.example.adoptme.ui.theme.AdoptTextSecondary
-import com.example.adoptme.ui.theme.BorderWarm
 
 @Composable
 fun PantallaChat(
@@ -80,7 +70,7 @@ fun PantallaChat(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(AdoptMeBg)
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         // =====================================================================
@@ -89,7 +79,7 @@ fun PantallaChat(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = AdoptCardWhite),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Row(
@@ -104,11 +94,11 @@ fun PantallaChat(
                         modifier = Modifier
                             .size(38.dp)
                             .clip(CircleShape)
-                            .background(AdoptSurfaceVariant)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         Text(
                             text = "←",
-                            color = AdoptTextDark,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
                         )
@@ -120,7 +110,7 @@ fun PantallaChat(
                     modifier = Modifier
                         .size(42.dp)
                         .clip(CircleShape)
-                        .background(if (rolUsuario == "Centro") AdoptOrangeLight else AdoptTealLight),
+                        .background(if (rolUsuario == "Centro") MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -140,7 +130,7 @@ fun PantallaChat(
                         },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = AdoptTextDark,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1
                     )
 
@@ -150,21 +140,21 @@ fun PantallaChat(
                     ) {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = if (rolUsuario == "Centro") AdoptTealLight else AdoptOrangeLight
+                            color = if (rolUsuario == "Centro") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
                         ) {
                             Text(
                                 text = if (rolUsuario == "Centro") "Centro (id #$idCentro)" else "Centro #$idCentro",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (rolUsuario == "Centro") AdoptTeal else AdoptOrange,
+                                color = if (rolUsuario == "Centro") MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer,
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
 
                         Text(
-                            text = if (rolUsuario == "Centro") nombreCentro else "En línea",
+                            text = if (rolUsuario == "Centro") "$nombreCentro · Mensajería demostrativa" else "Chat demostrativo local",
                             style = MaterialTheme.typography.bodySmall,
-                            color = AdoptTextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1
                         )
                     }
@@ -187,7 +177,7 @@ fun PantallaChat(
                 Card(
                     modifier = Modifier.padding(24.dp),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = AdoptCardWhite)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Column(
                         modifier = Modifier.padding(24.dp),
@@ -199,7 +189,7 @@ fun PantallaChat(
                             text = "Aún no hay mensajes",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = AdoptTextDark
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
@@ -209,7 +199,7 @@ fun PantallaChat(
                                 "Escribe un mensaje para consultar sobre la adopción responsable con este centro."
                             },
                             style = MaterialTheme.typography.bodyMedium,
-                            color = AdoptTextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
                     }
@@ -246,7 +236,7 @@ fun PantallaChat(
                                     else -> "👤 Adoptante (${mensaje.remitente})"
                                 },
                                 style = MaterialTheme.typography.labelSmall,
-                                color = AdoptTextSecondary,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                             )
 
@@ -259,14 +249,14 @@ fun PantallaChat(
                                     bottomEnd = if (esPropio) 2.dp else 16.dp
                                 ),
                                 color = when {
-                                    esPropio -> AdoptTeal
-                                    mensaje.esDelCentro -> AdoptOrangeLight
-                                    else -> AdoptCardWhite
+                                    esPropio -> MaterialTheme.colorScheme.primary
+                                    mensaje.esDelCentro -> MaterialTheme.colorScheme.secondaryContainer
+                                    else -> MaterialTheme.colorScheme.surface
                                 },
                                 shadowElevation = 1.dp,
                                 modifier = Modifier.border(
                                     width = 1.dp,
-                                    color = if (esPropio) AdoptTeal else BorderWarm,
+                                    color = if (esPropio) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
                                     shape = RoundedCornerShape(
                                         topStart = 16.dp,
                                         topEnd = 16.dp,
@@ -279,7 +269,7 @@ fun PantallaChat(
                                     Text(
                                         text = mensaje.texto,
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = if (esPropio) Color.White else AdoptTextDark
+                                        color = if (esPropio) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                                     )
 
                                     if (mensaje.fecha.isNotBlank()) {
@@ -287,7 +277,7 @@ fun PantallaChat(
                                         Text(
                                             text = mensaje.fecha,
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = if (esPropio) Color.White.copy(alpha = 0.75f) else AdoptTextSecondary,
+                                            color = if (esPropio) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
                                             textAlign = TextAlign.End,
                                             modifier = Modifier.fillMaxWidth()
                                         )
@@ -308,7 +298,7 @@ fun PantallaChat(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = AdoptCardWhite),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Row(
@@ -323,15 +313,17 @@ fun PantallaChat(
                     placeholder = {
                         Text(
                             text = if (rolUsuario == "Centro") "Escribe una respuesta..." else "Escribe una consulta...",
-                            color = AdoptTextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodyMedium
                         )
                     },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AdoptTeal,
-                        unfocusedBorderColor = BorderWarm
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                     ),
                     maxLines = 3
                 )
@@ -348,8 +340,8 @@ fun PantallaChat(
                     },
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = AdoptOrange,
-                        contentColor = Color.White
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
                     ),
                     modifier = Modifier.height(52.dp)
                 ) {

@@ -76,10 +76,12 @@ fun PantallaInicioSesion(
     val coroutineScope = rememberCoroutineScope()
     var iniciandoSesion by remember { mutableStateOf(false) }
 
-    fun procesarInicioSesion() {
-        val correoLimpio = correo.trim().lowercase()
+    fun procesarInicioSesion(correoParam: String? = null, contrasenaParam: String? = null) {
+        val emailObjetivo = correoParam ?: correo
+        val passObjetivo = contrasenaParam ?: contrasena
+        val correoLimpio = emailObjetivo.trim().lowercase()
 
-        if (correoLimpio.isBlank() || contrasena.isBlank()) {
+        if (correoLimpio.isBlank() || passObjetivo.isBlank()) {
             mensajeError = "Ingresa tu correo y contraseña."
             return
         }
@@ -94,7 +96,7 @@ fun PantallaInicioSesion(
                 val respuesta = RetrofitClient.usuariosApi.iniciarSesion(
                     LoginUsuarioRequest(
                         correo = correoLimpio,
-                        contrasena = contrasena
+                        contrasena = passObjetivo
                     )
                 )
 
@@ -487,7 +489,9 @@ fun PantallaInicioSesion(
                                     correo = "usuario@adoptme.com"
                                     contrasena = "123456"
                                     mensajeError = ""
+                                    procesarInicioSesion("usuario@adoptme.com", "123456")
                                 },
+                                enabled = !iniciandoSesion,
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
@@ -498,7 +502,9 @@ fun PantallaInicioSesion(
                                     correo = "centro@adoptme.com"
                                     contrasena = "123456"
                                     mensajeError = ""
+                                    procesarInicioSesion("centro@adoptme.com", "123456")
                                 },
+                                enabled = !iniciandoSesion,
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
@@ -509,7 +515,9 @@ fun PantallaInicioSesion(
                                     correo = "admin@adoptme.com"
                                     contrasena = "123456"
                                     mensajeError = ""
+                                    procesarInicioSesion("admin@adoptme.com", "123456")
                                 },
+                                enabled = !iniciandoSesion,
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.weight(1f)
                             ) {

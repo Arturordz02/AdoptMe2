@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.res.painterResource
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.adoptme.AdoptMe.UsuarioRegistrado
 import com.example.adoptme.data.remote.ActualizarPerfilRequest
 import com.example.adoptme.data.remote.RetrofitClient
@@ -53,6 +55,7 @@ fun PantallaPerfil(
     usuarioActual: UsuarioRegistrado? = null,
     abrirPublicaciones: () -> Unit = {},
     publicarMascota: () -> Unit = {},
+    abrirConsumoResponsable: () -> Unit = {},
     abrirPreferencias: () -> Unit = {},
     cerrarSesion: () -> Unit = {},
     guardarPerfil: (nombre: String, correo: String, telefono: String) -> Unit = { _, _, _ -> },
@@ -311,6 +314,28 @@ fun PantallaPerfil(
             Spacer(
                 modifier = Modifier.height(10.dp)
             )
+
+            OutlinedButton(
+                onClick = abrirConsumoResponsable,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "🌱",
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Text(
+                        text = "Consumo responsable (ODS 12)",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(
+                modifier = Modifier.height(10.dp)
+            )
             OutlinedButton(
                 onClick = abrirPreferencias,
                 modifier = Modifier.fillMaxWidth(),
@@ -354,12 +379,30 @@ fun PantallaPerfil(
                 modifier = Modifier.height(28.dp)
             )
 
-            Text(
-                text = "🐾 Mis solicitudes de adopción",
-                style =
-                    MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = "🐾 Mis solicitudes de adopción",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Historial demostrativo local",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        maxLines = 2,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
+            }
 
             Spacer(
                 modifier = Modifier.height(12.dp)
@@ -487,6 +530,24 @@ fun PantallaPerfil(
                                             top = 6.dp
                                         )
                                 )
+                            }
+
+                            Row(
+                                modifier = Modifier.padding(top = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (solicitud.id > 0) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
+                                ) {
+                                    Text(
+                                        text = if (solicitud.id > 0) "Confirmada por servidor (ID #${solicitud.id})" else "Registro demostrativo local",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (solicitud.id > 0) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
                             }
                         }
                     }

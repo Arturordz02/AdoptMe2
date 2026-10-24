@@ -414,6 +414,7 @@ fun PantallaInicio(
     abrirFavoritos: () -> Unit,
     correoActual: String = "",
     solicitarAdopcionDesdeTest: ((Pet) -> Unit)? = null,
+    abrirConsumoResponsable: (() -> Unit)? = null,
     cargando: Boolean = false,
     errorConexion: String? = null,
     reintentarCarga: (() -> Unit)? = null
@@ -598,7 +599,7 @@ fun PantallaInicio(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "✨  Adopciones Éticas y Verificadas (ODS 12)",
+                                        text = "✨  Adopción responsable de mascotas",
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White
@@ -618,30 +619,68 @@ fun PantallaInicio(
                                 color = Color.White.copy(alpha = 0.92f)
                             )
 
-                            Button(
-                                onClick = { mostrarTestCompatibilidad = true },
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF00D4B2),
-                                    contentColor = Color(0xFF0D3830)
-                                ),
-                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp)
+                                Button(
+                                    onClick = { mostrarTestCompatibilidad = true },
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF00D4B2),
+                                        contentColor = Color(0xFF0D3830)
+                                    ),
+                                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(
-                                        text = "✨",
-                                        fontSize = 16.sp,
-                                        modifier = Modifier.padding(end = 8.dp)
-                                    )
-                                    Text(
-                                        text = "Hacer Test de Compatibilidad",
-                                        fontWeight = FontWeight.Bold,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = Color(0xFF0D3830)
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center,
+                                        modifier = Modifier.padding(vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = "✨",
+                                            fontSize = 16.sp,
+                                            modifier = Modifier.padding(end = 8.dp)
+                                        )
+                                        Text(
+                                            text = "Test de compatibilidad",
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = Color(0xFF0D3830)
+                                        )
+                                    }
+                                }
+
+                                if (abrirConsumoResponsable != null) {
+                                    OutlinedButton(
+                                        onClick = abrirConsumoResponsable,
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            containerColor = Color.White.copy(alpha = 0.2f),
+                                            contentColor = Color.White
+                                        ),
+                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center,
+                                            modifier = Modifier.padding(vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = "🌱",
+                                                fontSize = 16.sp,
+                                                modifier = Modifier.padding(end = 8.dp)
+                                            )
+                                            Text(
+                                                text = "Consumo responsable",
+                                                fontWeight = FontWeight.Bold,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -780,11 +819,27 @@ fun PantallaInicio(
                         }
 
                         // 3. Botón para alternar panel de filtros
+                        val colorFondoFiltros = if (panelFiltrosVisible) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        }
+                        val colorContenidoFiltros = if (panelFiltrosVisible) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        }
+                        val colorBordeFiltros = if (panelFiltrosVisible) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)
+                        }
+
                         Surface(
                             onClick = { panelFiltrosVisible = !panelFiltrosVisible },
                             shape = RoundedCornerShape(14.dp),
-                            color = if (panelFiltrosVisible) Color(0xFFFFF0E8) else Color(0xFFFFF8F5),
-                            border = BorderStroke(1.dp, if (panelFiltrosVisible) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),
+                            color = colorFondoFiltros,
+                            border = BorderStroke(1.dp, colorBordeFiltros),
                             modifier = Modifier.fillMaxWidth().height(46.dp)
                         ) {
                             Row(
@@ -796,12 +851,12 @@ fun PantallaInicio(
                                     painter = painterResource(id = R.drawable.ic_filter),
                                     contentDescription = null,
                                     modifier = Modifier.padding(end = 8.dp).size(20.dp),
-                                    tint = MaterialTheme.colorScheme.primary
+                                    tint = colorContenidoFiltros
                                 )
                                 Text(
                                     text = if (panelFiltrosVisible) "Filtros ▲" else "Filtros ▼",
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
+                                    color = colorContenidoFiltros,
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             }
@@ -813,7 +868,7 @@ fun PantallaInicio(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(Color(0xFFFFF3EC))
+                                    .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f))
                                     .padding(horizontal = 12.dp, vertical = 6.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
@@ -821,7 +876,7 @@ fun PantallaInicio(
                                 Text(
                                     text = resumenFiltrosActivos,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -837,12 +892,12 @@ fun PantallaInicio(
                                             painter = painterResource(id = R.drawable.ic_close),
                                             contentDescription = "Limpiar",
                                             modifier = Modifier.padding(end = 4.dp).size(14.dp),
-                                            tint = MaterialTheme.colorScheme.primary
+                                            tint = MaterialTheme.colorScheme.onSecondaryContainer
                                         )
                                         Text(
                                             text = "Limpiar",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.primary,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }

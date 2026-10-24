@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -80,18 +81,15 @@ fun PantallaCentro(
     idCentroActualInicial: Int = 1,
     modifier: Modifier = Modifier
 ) {
-    var idCentroActivo by remember { mutableStateOf(idCentroActualInicial) }
-
-    val centroActual = CentrosDisponiblesDemo.find { it.id == idCentroActivo }
-        ?: CentrosDisponiblesDemo.first()
-
-    // AISLAMIENTO ESTRICTO: Filtrar exclusivamente las conversaciones del centro activo
-    val conversacionesFiltradas = conversaciones.filter { it.idCentro == idCentroActivo }
+    // Aislamiento estricto del Centro Demo: fijado exclusivamente al Centro ID 1
+    val centroActual = CentrosDisponiblesDemo.first { it.id == 1 }
+    val conversacionesFiltradas = conversaciones.filter { it.idCentro == 1 }
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(AdoptMeBg)
+            .statusBarsPadding()
             .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
         // =====================================================================
@@ -104,132 +102,107 @@ fun PantallaCentro(
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Column(modifier = Modifier.padding(18.dp)) {
+                // 1. Icono, título y nombre del centro
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(AdoptOrangeLight),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(AdoptOrangeLight),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(text = centroActual.icono, fontSize = 24.sp)
-                        }
+                        Text(text = centroActual.icono, fontSize = 24.sp)
+                    }
 
-                        Column {
-                            Text(
-                                text = "Panel del Centro de Adopción",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = AdoptTextDark
-                            )
-                            Text(
-                                text = centroActual.nombre,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = AdoptOrange
-                            )
-                        }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Panel del Centro de Adopción",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = AdoptTextDark
+                        )
+                        Text(
+                            text = centroActual.nombre,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = AdoptOrange
+                        )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
+                // 2. Insignias descriptivas sin comprimir
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = AdoptTealLight
+                        color = MaterialTheme.colorScheme.primaryContainer
                     ) {
                         Text(
                             text = "Rol: Centro (ID #${centroActual.id})",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
-                            color = AdoptTeal,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                         )
                     }
 
-                    OutlinedButton(
-                        onClick = cerrarSesion,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
-                        )
+                    Surface(
+                        modifier = Modifier.weight(1f, fill = false),
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_logout),
-                                contentDescription = null,
-                                modifier = Modifier.padding(end = 4.dp).size(16.dp),
-                                tint = MaterialTheme.colorScheme.error
-                            )
-                            Text(
-                                text = "Cerrar sesión",
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
+                        Text(
+                            text = "Mensajería demostrativa",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            maxLines = 2,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 3. Botón Cerrar sesión en fila independiente con ancho completo
+                OutlinedButton(
+                    onClick = cerrarSesion,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_logout),
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 6.dp).size(18.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Text(
+                            text = "Cerrar sesión",
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.labelLarge
+                        )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // =====================================================================
-        // SELECTOR DE ALBERGUE / CENTRO GESTIONADO
-        // =====================================================================
-        Text(
-            text = "Gestionar centro de adopción:",
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = AdoptTextSecondary
-        )
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            CentrosDisponiblesDemo.forEach { c ->
-                val cantMensajes = conversaciones.count { it.idCentro == c.id }
-                val seleccionado = c.id == idCentroActivo
-
-                FilterChip(
-                    selected = seleccionado,
-                    onClick = { idCentroActivo = c.id },
-                    label = {
-                        Text(
-                            text = "${c.icono} ${c.nombreCorto}" + if (cantMensajes > 0) " ($cantMensajes)" else "",
-                            fontWeight = if (seleccionado) FontWeight.Bold else FontWeight.Normal,
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = AdoptTeal,
-                        selectedLabelColor = Color.White,
-                        containerColor = AdoptCardWhite,
-                        labelColor = AdoptTextDark
-                    ),
-                    shape = RoundedCornerShape(10.dp)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         // =====================================================================
         // LISTADO DE CONVERSACIONES AISLADAS DEL CENTRO SELECCIONADO
@@ -239,12 +212,19 @@ fun PantallaCentro(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Conversaciones recibidas",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = AdoptTextDark
-            )
+            Column {
+                Text(
+                    text = "Conversaciones recibidas",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = AdoptTextDark
+                )
+                Text(
+                    text = "Almacenamiento local del dispositivo",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AdoptTextSecondary
+                )
+            }
 
             Surface(
                 shape = RoundedCornerShape(12.dp),

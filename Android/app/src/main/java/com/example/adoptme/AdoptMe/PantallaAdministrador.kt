@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -50,6 +51,7 @@ import com.example.adoptme.model.Pet
 import com.example.adoptme.ui.theme.AdoptCardWhite
 import com.example.adoptme.ui.theme.AdoptMeBg
 import com.example.adoptme.ui.theme.AdoptOrange
+import com.example.adoptme.ui.theme.AdoptOrangeLight
 import com.example.adoptme.ui.theme.AdoptTeal
 import com.example.adoptme.ui.theme.AdoptTealDark
 import com.example.adoptme.ui.theme.AdoptTealLight
@@ -104,6 +106,7 @@ fun PantallaAdministrador(
         modifier = modifier
             .fillMaxSize()
             .background(AdoptMeBg)
+            .statusBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 18.dp)
     ) {
@@ -161,8 +164,8 @@ fun PantallaAdministrador(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = AdoptTealLight,
-                        border = BorderStroke(1.dp, AdoptTeal.copy(alpha = 0.4f))
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -171,7 +174,7 @@ fun PantallaAdministrador(
                             Text("👑 ", fontSize = 12.sp)
                             Text(
                                 text = "Rol: Administrador",
-                                color = AdoptTealDark,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold
                             )
@@ -390,10 +393,9 @@ fun PantallaAdministrador(
         // 4. CONTENIDO SEGÚN SECCIÓN SELECCIONADA
         // =====================================================================
         if (seccionActiva == "solicitudes") {
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
                     text = "Expedientes de Solicitudes",
@@ -401,9 +403,24 @@ fun PantallaAdministrador(
                     fontWeight = FontWeight.Bold,
                     color = AdoptTextDark
                 )
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Gestión demostrativa almacenada localmente",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 2,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Filtros rápidos para solicitudes
             Row(

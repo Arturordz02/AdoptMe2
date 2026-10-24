@@ -91,6 +91,16 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+if (args.Contains("--seed-demo"))
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AdoptMeDbContext>();
+    var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<AdoptMe.Api.Models.Usuario>>();
+    await SeederCuentasDemo.SembrarCuentasAsync(db, hasher);
+    Console.WriteLine("SEED_EXITOSO");
+    return;
+}
+
 // Configure the HTTP request pipeline.
 // NOTA TEMPORAL (EXPOSICIÓN UNIVERSITARIA):
 // Swagger se habilita aquí visiblemente para Development y Production para la demostración con el docente.

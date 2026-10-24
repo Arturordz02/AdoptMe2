@@ -39,15 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.adoptme.ui.theme.AdoptCardWhite
-import com.example.adoptme.ui.theme.AdoptMeBg
-import com.example.adoptme.ui.theme.AdoptOrange
-import com.example.adoptme.ui.theme.AdoptTeal
-import com.example.adoptme.ui.theme.AdoptTealLight
-import com.example.adoptme.ui.theme.AdoptTextDark
 import com.example.adoptme.model.CentroAdopcion
-import com.example.adoptme.ui.theme.AdoptTextSecondary
-import com.example.adoptme.ui.theme.BorderWarm
 
 typealias CentroAdopcionDemo = CentroAdopcion
 
@@ -116,7 +108,7 @@ fun CentrosScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(AdoptMeBg)
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
         // Botón superior de regreso a Inicio
@@ -127,7 +119,7 @@ fun CentrosScreen(
             Text(
                 text = "← Volver a Inicio",
                 fontWeight = FontWeight.SemiBold,
-                color = AdoptTeal
+                color = MaterialTheme.colorScheme.primary
             )
         }
 
@@ -144,13 +136,13 @@ fun CentrosScreen(
         // Indicador obligatorio de prototipo
         Surface(
             shape = RoundedCornerShape(8.dp),
-            color = AdoptTealLight,
-            border = BorderStroke(1.dp, AdoptTeal.copy(alpha = 0.35f)),
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
             modifier = Modifier.padding(vertical = 6.dp)
         ) {
             Text(
                 text = "ℹ️ Información demostrativa del prototipo",
-                color = AdoptTeal,
+                color = MaterialTheme.colorScheme.primary,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
@@ -172,9 +164,9 @@ fun CentrosScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = AdoptCardWhite
+                        containerColor = MaterialTheme.colorScheme.surface
                     ),
-                    border = BorderStroke(1.dp, BorderWarm),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
                     Column(
@@ -191,7 +183,7 @@ fun CentrosScreen(
                                 text = centro.nombre,
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = AdoptTextDark,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -204,7 +196,7 @@ fun CentrosScreen(
                                 text = "📍 ${centro.ubicacion}",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Medium,
-                                color = AdoptTeal
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
 
@@ -212,7 +204,7 @@ fun CentrosScreen(
                         Text(
                             text = "🏠 Dirección: ${centro.direccionEjemplo}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = AdoptTextSecondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         // Descripción breve
@@ -226,14 +218,14 @@ fun CentrosScreen(
                         Text(
                             text = "🕒 Horario: ${centro.horarioAtencion}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = AdoptTextSecondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         // Contacto de ejemplo
                         Text(
                             text = "✉️ Contacto: ${centro.contactoEjemplo}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = AdoptTextSecondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         Spacer(modifier = Modifier.height(4.dp))
@@ -246,9 +238,9 @@ fun CentrosScreen(
                             OutlinedButton(
                                 onClick = { centroParaDetalle = centro },
                                 shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, AdoptTeal),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
                                 colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = AdoptTeal
+                                    contentColor = MaterialTheme.colorScheme.primary
                                 ),
                                 modifier = Modifier.weight(1f)
                             ) {
@@ -269,8 +261,8 @@ fun CentrosScreen(
                                 },
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = AdoptOrange,
-                                    contentColor = MaterialTheme.colorScheme.surface
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
                                 ),
                                 modifier = Modifier.weight(1f)
                             ) {
@@ -302,19 +294,19 @@ fun CentrosScreen(
                 Text(
                     text = centro.nombre,
                     fontWeight = FontWeight.Bold,
-                    color = AdoptTextDark
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = AdoptTealLight
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
                     ) {
                         Text(
                             text = "Información demostrativa del prototipo",
                             style = MaterialTheme.typography.labelSmall,
-                            color = AdoptTeal,
+                            color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
@@ -322,39 +314,46 @@ fun CentrosScreen(
                     Text(
                         text = "📍 Ubicación: ${centro.ubicacion}",
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
                         text = "🏠 Dirección: ${centro.direccionEjemplo}",
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = "🕒 Horario de atención: ${centro.horarioAtencion}",
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = "✉️ Contacto: ${centro.contactoEjemplo}",
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = centro.descripcion,
                         style = MaterialTheme.typography.bodySmall,
-                        color = AdoptTextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             },
             confirmButton = {
                 Button(
                     onClick = { centroParaDetalle = null },
-                    colors = ButtonDefaults.buttonColors(containerColor = AdoptTeal),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Text("Cerrar")
                 }
             },
             shape = RoundedCornerShape(16.dp),
-            containerColor = AdoptCardWhite
+            containerColor = MaterialTheme.colorScheme.surface
         )
     }
 
@@ -367,19 +366,19 @@ fun CentrosScreen(
                 Text(
                     text = "Contactar al centro",
                     fontWeight = FontWeight.Bold,
-                    color = AdoptTextDark
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = AdoptTealLight
+                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
                     ) {
                         Text(
                             text = "Información demostrativa del prototipo",
                             style = MaterialTheme.typography.labelSmall,
-                            color = AdoptOrange,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
@@ -387,36 +386,41 @@ fun CentrosScreen(
                     Text(
                         text = "Centro: ${centro.nombre}",
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
                         text = "Para coordinar visitas o consultas sobre mascotas en adopción, utiliza este canal de contacto de ejemplo:",
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = "✉️ Canal: ${centro.contactoEjemplo}",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
-                        color = AdoptOrange
+                        color = MaterialTheme.colorScheme.primary
                     )
                     Text(
                         text = "🕒 Horario sugerido: ${centro.horarioAtencion}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = AdoptTextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             },
             confirmButton = {
                 Button(
                     onClick = { centroParaContactar = null },
-                    colors = ButtonDefaults.buttonColors(containerColor = AdoptOrange),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Text("Entendido")
                 }
             },
             shape = RoundedCornerShape(16.dp),
-            containerColor = AdoptCardWhite
+            containerColor = MaterialTheme.colorScheme.surface
         )
     }
 }
