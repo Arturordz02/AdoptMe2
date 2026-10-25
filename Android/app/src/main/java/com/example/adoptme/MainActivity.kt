@@ -38,6 +38,8 @@ import android.util.Log
 import com.example.adoptme.data.remote.RetrofitClient
 import com.example.adoptme.data.remote.toPet
 import com.example.adoptme.data.remote.toDto
+import com.example.adoptme.data.remote.ActualizarEstadoSolicitudRequestDto
+import com.example.adoptme.data.remote.toDomain
 import androidx.compose.runtime.rememberCoroutineScope
 import android.widget.Toast
 import kotlinx.coroutines.launch
@@ -114,6 +116,8 @@ class MainActivity : ComponentActivity() {
                     var cargandoCatalogo by remember { mutableStateOf(true) }
                     var errorCatalogo by remember { mutableStateOf<String?>(null) }
                     var recargarCatalogoTrigger by remember { mutableStateOf(0) }
+                    var recargarSolicitudesTrigger by remember { mutableStateOf(0) }
+                    val procesandoSolicitudIds = remember { mutableStateListOf<Int>() }
 
                     LaunchedEffect(recargarCatalogoTrigger) {
                         try {
@@ -158,6 +162,54 @@ class MainActivity : ComponentActivity() {
                                 "Error consultando Neon",
                                 e
                             )
+                        }
+                    }
+
+                    // Sincronización real de solicitudes de adopción con el backend ASP.NET Core y Neon
+                    LaunchedEffect(correoSesionActiva, rolUsuario, recargarSolicitudesTrigger) {
+                        if (correoSesionActiva.isNotBlank()) {
+                            if (rolUsuario == "Admin") {
+                                try {
+                                    val respuesta = RetrofitClient.solicitudesApi.obtenerSolicitudesAdmin()
+                                    if (respuesta.isSuccessful && respuesta.body() != null) {
+                                        val remotas = respuesta.body()!!.map { it.toDomain() }
+                                        solicitudesAdopcion.clear()
+                                        solicitudesAdopcion.addAll(remotas.distinctBy { it.id })
+                                        Log.d(
+                                            "ADOPTME_SOLICITUDES",
+                                            "Consulta exitosa como Admin. Solicitudes reales recibidas: ${remotas.size}"
+                                        )
+                                    } else {
+                                        val errorMsg = when (respuesta.code()) {
+                                            401 -> "Sesión expirada o no autorizada."
+                                            403 -> "Acceso denegado: se requieren permisos de Administrador."
+                                            else -> "Error en el servidor al obtener solicitudes (${respuesta.code()})."
+                                        }
+                                        Log.w("ADOPTME_SOLICITUDES", errorMsg)
+                                        Toast.makeText(applicationContext, errorMsg, Toast.LENGTH_LONG).show()
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("ADOPTME_SOLICITUDES", "Error de red consultando solicitudes admin", e)
+                                    Toast.makeText(applicationContext, "Error de conexión al cargar solicitudes del servidor.", Toast.LENGTH_LONG).show()
+                                }
+                            } else if (rolUsuario == "Adoptante") {
+                                try {
+                                    val respuesta = RetrofitClient.solicitudesApi.obtenerMisSolicitudes()
+                                    if (respuesta.isSuccessful && respuesta.body() != null) {
+                                        val remotas = respuesta.body()!!.map { it.toDomain() }
+                                        solicitudesAdopcion.clear()
+                                        solicitudesAdopcion.addAll(remotas.distinctBy { it.id })
+                                        Log.d(
+                                            "ADOPTME_SOLICITUDES",
+                                            "Mis solicitudes reales recibidas: ${remotas.size}"
+                                        )
+                                    } else {
+                                        Log.w("ADOPTME_SOLICITUDES", "Código al consultar mis solicitudes: ${respuesta.code()}")
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("ADOPTME_SOLICITUDES", "Error al consultar mis solicitudes", e)
+                                }
+                            }
                         }
                     }
 
@@ -350,91 +402,180 @@ class MainActivity : ComponentActivity() {
                         launcherDetalle.launch(intent)
                     }
 
-                    // 7. Handlers de administración
+                    // 7. Handlers de administración sincronizados con ASP.NET Core y Neon
                     val manejarAprobar: (AdoptionRequest) -> Pair<Boolean, String> = { solicitud ->
-                        val mascotaAsociada = localizarMascotaParaAprobacion(
-                            mascotas = mascotas,
-                            petId = solicitud.petId,
-                            nombreMascota = solicitud.petName
-                        )
-                        val (puedeAprobar, mensajeValidacion) = puedeAprobarSolicitud(mascotaAsociada)
+                        if (solicitud.id > 0) {
+                            if (procesandoSolicitudIds.contains(solicitud.id)) {
+                                Pair(false, "Operación en curso, por favor espere.")
+                            } else {
+                                procesandoSolicitudIds.add(solicitud.id)
+                                coroutineScope.launch {
+                                    try {
+                                        val reqDto = ActualizarEstadoSolicitudRequestDto(
+                                            status = "Aprobada",
+                                            observacion = "Solicitud aprobada por el administrador."
+                                        )
+                                        val respuesta = RetrofitClient.solicitudesApi.actualizarEstadoSolicitud(solicitud.id, reqDto)
+                                        if (respuesta.isSuccessful && respuesta.body() != null) {
+                                            val solicitudActualizada = respuesta.body()!!.toDomain()
+                                            val indice = solicitudesAdopcion.indexOfFirst { it.id == solicitud.id }
+                                            if (indice != -1) {
+                                                solicitudesAdopcion[indice] = solicitudActualizada
+                                            }
+                                            // Actualizar también en caché local por congruencia
+                                            almacenamientoApp.actualizarEstadoSolicitud(solicitudActualizada)
 
-                        if (!puedeAprobar || mascotaAsociada == null) {
-                            Pair(false, mensajeValidacion)
+                                            // Refrescar lista administrativa completa desde Neon
+                                            recargarSolicitudesTrigger++
+                                            // Refrescar catálogo de mascotas (pasa a "En proceso")
+                                            recargarCatalogoTrigger++
+
+                                            Toast.makeText(applicationContext, "Solicitud aprobada en el servidor. Mascota en proceso.", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            val errorMsg = when (respuesta.code()) {
+                                                400 -> "Solicitud no válida o la mascota no está disponible."
+                                                401 -> "Sesión expirada o no autorizada."
+                                                403 -> "Acceso denegado: se requieren permisos de Administrador."
+                                                404 -> "La solicitud o mascota no fue encontrada en el servidor."
+                                                409 -> "Conflicto: La mascota ya se encuentra en otro proceso de adopción."
+                                                else -> "Error en el servidor al aprobar solicitud (${respuesta.code()})."
+                                            }
+                                            Toast.makeText(applicationContext, errorMsg, Toast.LENGTH_LONG).show()
+                                        }
+                                    } catch (e: Exception) {
+                                        Toast.makeText(applicationContext, "Error de red al conectar con el servidor.", Toast.LENGTH_LONG).show()
+                                    } finally {
+                                        procesandoSolicitudIds.remove(solicitud.id)
+                                    }
+                                }
+                                Pair(true, "Enviando aprobación al servidor...")
+                            }
+                        } else {
+                            val mascotaAsociada = localizarMascotaParaAprobacion(
+                                mascotas = mascotas,
+                                petId = solicitud.petId,
+                                nombreMascota = solicitud.petName
+                            )
+                            val (puedeAprobar, mensajeValidacion) = puedeAprobarSolicitud(mascotaAsociada)
+
+                            if (!puedeAprobar || mascotaAsociada == null) {
+                                Pair(false, mensajeValidacion)
+                            } else {
+                                val indice = solicitudesAdopcion.indexOf(solicitud)
+                                val solicitudAprobada = solicitud.copy(status = "Aprobada")
+                                if (indice != -1) {
+                                    solicitudesAdopcion[indice] = solicitudAprobada
+                                }
+                                almacenamientoApp.actualizarEstadoSolicitud(solicitudAprobada)
+
+                                val mascotaActualizada = mascotaAsociada.copy(status = "En proceso")
+                                val indiceMascota = mascotas.indexOfFirst { it.id == mascotaActualizada.id }
+                                if (indiceMascota != -1) {
+                                    mascotas[indiceMascota] = mascotaActualizada
+                                }
+
+                                val indicePub = mascotasPublicadas.indexOfFirst { it.id == mascotaActualizada.id }
+                                if (indicePub != -1) {
+                                    mascotasPublicadas[indicePub] = mascotaActualizada
+                                    almacenamientoMascotas.guardarMascotas(mascotasPublicadas)
+                                }
+
+                                if (mascotaSeleccionada?.id == mascotaActualizada.id) {
+                                    mascotaSeleccionada = mascotaActualizada
+                                }
+
+                                val indiceFavorito = mascotasFavoritas.indexOfFirst { it.id == mascotaActualizada.id }
+                                if (indiceFavorito != -1) {
+                                    mascotasFavoritas[indiceFavorito] = mascotaActualizada
+                                }
+
+                                if (solicitud.email.isNotBlank()) {
+                                    almacenamientoApp.agregarNotificacion(
+                                        solicitud.email,
+                                        NotificationItem(
+                                            title = "Solicitud aprobada 🎉",
+                                            message = "Tu solicitud para adoptar a ${solicitud.petName} fue aprobada."
+                                        )
+                                    )
+                                }
+
+                                val notifAdmin = NotificationItem(
+                                    title = "Solicitud aprobada",
+                                    message = "Aprobaste la adopción de ${solicitud.petName} para ${solicitud.applicantName.ifBlank { solicitud.email }}."
+                                )
+                                notificaciones.add(0, notifAdmin)
+                                almacenamientoApp.guardarNotificaciones("admin@adoptme.com", notificaciones)
+
+                                Pair(true, "Solicitud aprobada correctamente.")
+                            }
+                        }
+                    }
+
+                    val manejarPonerEnRevision: (AdoptionRequest) -> Unit = { solicitud ->
+                        if (solicitud.id > 0) {
+                            if (procesandoSolicitudIds.contains(solicitud.id)) {
+                                Toast.makeText(applicationContext, "Operación en curso, por favor espere.", Toast.LENGTH_SHORT).show()
+                            } else {
+                                procesandoSolicitudIds.add(solicitud.id)
+                                coroutineScope.launch {
+                                    try {
+                                        val reqDto = ActualizarEstadoSolicitudRequestDto(
+                                            status = "En revisión",
+                                            observacion = "Solicitud en evaluación por el administrador."
+                                        )
+                                        val respuesta = RetrofitClient.solicitudesApi.actualizarEstadoSolicitud(solicitud.id, reqDto)
+                                        if (respuesta.isSuccessful && respuesta.body() != null) {
+                                            val solicitudActualizada = respuesta.body()!!.toDomain()
+                                            val indice = solicitudesAdopcion.indexOfFirst { it.id == solicitud.id }
+                                            if (indice != -1) {
+                                                solicitudesAdopcion[indice] = solicitudActualizada
+                                            }
+                                            almacenamientoApp.actualizarEstadoSolicitud(solicitudActualizada)
+                                            recargarSolicitudesTrigger++
+                                            Toast.makeText(applicationContext, "Solicitud puesta en revisión en el servidor.", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            val errorMsg = when (respuesta.code()) {
+                                                400 -> "Solicitud no válida."
+                                                401 -> "Sesión expirada o no autorizada."
+                                                403 -> "Acceso denegado: se requieren permisos de Administrador."
+                                                404 -> "La solicitud no fue encontrada en el servidor."
+                                                409 -> "Conflicto con el estado actual en el servidor."
+                                                else -> "Error en el servidor al poner en revisión (${respuesta.code()})."
+                                            }
+                                            Toast.makeText(applicationContext, errorMsg, Toast.LENGTH_LONG).show()
+                                        }
+                                    } catch (e: Exception) {
+                                        Toast.makeText(applicationContext, "Error de red al conectar con el servidor.", Toast.LENGTH_LONG).show()
+                                    } finally {
+                                        procesandoSolicitudIds.remove(solicitud.id)
+                                    }
+                                }
+                            }
                         } else {
                             val indice = solicitudesAdopcion.indexOf(solicitud)
-                            val solicitudAprobada = solicitud.copy(status = "Aprobada")
+                            val solicitudEnRevision = solicitud.copy(status = "En revisión")
                             if (indice != -1) {
-                                solicitudesAdopcion[indice] = solicitudAprobada
+                                solicitudesAdopcion[indice] = solicitudEnRevision
                             }
-                            almacenamientoApp.actualizarEstadoSolicitud(solicitudAprobada)
-
-                            val mascotaActualizada = mascotaAsociada.copy(status = "En proceso")
-                            val indiceMascota = mascotas.indexOfFirst { it.id == mascotaActualizada.id }
-                            if (indiceMascota != -1) {
-                                mascotas[indiceMascota] = mascotaActualizada
-                            }
-
-                            val indicePub = mascotasPublicadas.indexOfFirst { it.id == mascotaActualizada.id }
-                            if (indicePub != -1) {
-                                mascotasPublicadas[indicePub] = mascotaActualizada
-                                almacenamientoMascotas.guardarMascotas(mascotasPublicadas)
-                            }
-
-                            if (mascotaSeleccionada?.id == mascotaActualizada.id) {
-                                mascotaSeleccionada = mascotaActualizada
-                            }
-
-                            val indiceFavorito = mascotasFavoritas.indexOfFirst { it.id == mascotaActualizada.id }
-                            if (indiceFavorito != -1) {
-                                mascotasFavoritas[indiceFavorito] = mascotaActualizada
-                            }
+                            almacenamientoApp.actualizarEstadoSolicitud(solicitudEnRevision)
 
                             if (solicitud.email.isNotBlank()) {
                                 almacenamientoApp.agregarNotificacion(
                                     solicitud.email,
                                     NotificationItem(
-                                        title = "Solicitud aprobada 🎉",
-                                        message = "Tu solicitud para adoptar a ${solicitud.petName} fue aprobada."
+                                        title = "Solicitud en revisión 🔍",
+                                        message = "Tu solicitud para adoptar a ${solicitud.petName} está siendo evaluada."
                                     )
                                 )
                             }
 
                             val notifAdmin = NotificationItem(
-                                title = "Solicitud aprobada",
-                                message = "Aprobaste la adopción de ${solicitud.petName} para ${solicitud.applicantName.ifBlank { solicitud.email }}."
+                                title = "Solicitud en revisión",
+                                message = "Pusiste en revisión la solicitud para ${solicitud.petName}."
                             )
                             notificaciones.add(0, notifAdmin)
                             almacenamientoApp.guardarNotificaciones("admin@adoptme.com", notificaciones)
-
-                            Pair(true, "Solicitud aprobada correctamente.")
                         }
-                    }
-
-                    val manejarPonerEnRevision: (AdoptionRequest) -> Unit = { solicitud ->
-                        val indice = solicitudesAdopcion.indexOf(solicitud)
-                        val solicitudEnRevision = solicitud.copy(status = "En revisión")
-                        if (indice != -1) {
-                            solicitudesAdopcion[indice] = solicitudEnRevision
-                        }
-                        almacenamientoApp.actualizarEstadoSolicitud(solicitudEnRevision)
-
-                        if (solicitud.email.isNotBlank()) {
-                            almacenamientoApp.agregarNotificacion(
-                                solicitud.email,
-                                NotificationItem(
-                                    title = "Solicitud en revisión 🔍",
-                                    message = "Tu solicitud para adoptar a ${solicitud.petName} está siendo evaluada."
-                                )
-                            )
-                        }
-
-                        val notifAdmin = NotificationItem(
-                            title = "Solicitud en revisión",
-                            message = "Pusiste en revisión la solicitud para ${solicitud.petName}."
-                        )
-                        notificaciones.add(0, notifAdmin)
-                        almacenamientoApp.guardarNotificaciones("admin@adoptme.com", notificaciones)
                     }
 
                     val manejarCambiarEstadoMascota: (Pet, String) -> Unit = { mascota, nuevoEstado ->
@@ -720,11 +861,9 @@ class MainActivity : ComponentActivity() {
                                         )
                                         notificaciones.addAll(almacenamientoApp.cargarNotificaciones(correoNorm))
 
-                                        if (rol == "Admin") {
-                                            solicitudesAdopcion.addAll(almacenamientoApp.cargarSolicitudesGenerales())
-                                        } else {
-                                            solicitudesAdopcion.addAll(almacenamientoApp.cargarSolicitudesUsuario(correoNorm))
-                                        }
+                                        // Sincronización autoritativa remota: la lista visible se alimenta exclusivamente de Neon
+                                        solicitudesAdopcion.clear()
+                                        recargarSolicitudesTrigger++
                                     },
                                     irARegistro = {
                                         mostrarRegistro = true

@@ -170,6 +170,216 @@ namespace AdoptMe.Api.Controllers
             );
         }
 
+        // GET: api/Solicitudes/admin
+        // Consultar todas las solicitudes registradas (exclusivo para Administrador)
+        [Authorize(Roles = "Admin")]
+        [HttpGet("admin")]
+        public async Task<ActionResult<IEnumerable<SolicitudResponseDto>>> ObtenerTodasAdmin()
+        {
+            var solicitudes = await _context.Solicitudes
+                .AsNoTracking()
+                .OrderByDescending(s => s.FechaSolicitud)
+                .Select(s => new SolicitudResponseDto
+                {
+                    Id = s.Id,
+                    MascotaId = s.MascotaId,
+                    AdoptanteId = s.AdoptanteId,
+                    PetName = s.PetName,
+                    PetSpecies = s.PetSpecies,
+                    ApplicantName = s.ApplicantName,
+                    Phone = s.Phone,
+                    Email = s.Email,
+                    Address = s.Address,
+                    HousingType = s.HousingType,
+                    TimeAvailability = s.TimeAvailability,
+                    PreviousExperience = s.PreviousExperience,
+                    Reason = s.Reason,
+                    Status = s.Status,
+                    Observacion = s.Observacion,
+                    FechaSolicitud = s.FechaSolicitud,
+                    FechaActualizacion = s.FechaActualizacion
+                })
+                .ToListAsync();
+
+            return Ok(solicitudes);
+        }
+
+        // PUT: api/Solicitudes/5/estado
+        // Actualizar el estado de una solicitud (Aprobar, Poner en revisión, Rechazar)
+        [Authorize(Roles = "Admin")]
+        [HttpPut("{id:int}/estado")]
+        public async Task<ActionResult<SolicitudResponseDto>> ActualizarEstado(
+            int id,
+            [FromBody] ActualizarEstadoSolicitudDto dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var statusInput = dto.Status?.Trim();
+            if (string.IsNullOrWhiteSpace(statusInput))
+            {
+                return BadRequest(new { mensaje = "El estado no puede estar vacío." });
+            }
+
+            // Normalizar variantes de estado
+            string estadoNormalizado;
+            if (string.Equals(statusInput, "Pendiente", StringComparison.OrdinalIgnoreCase))
+            {
+                estadoNormalizado = "Pendiente";
+            }
+            else if (string.Equals(statusInput, "En revisión", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(statusInput, "En revision", StringComparison.OrdinalIgnoreCase))
+            {
+                estadoNormalizado = "En revisión";
+            }
+            else if (string.Equals(statusInput, "Aprobada", StringComparison.OrdinalIgnoreCase))
+            {
+                estadoNormalizado = "Aprobada";
+            }
+            else if (string.Equals(statusInput, "Rechazada", StringComparison.OrdinalIgnoreCase))
+            {
+                estadoNormalizado = "Rechazada";
+            }
+            else
+            {
+                return BadRequest(new
+                {
+                    mensaje = $"Estado '{statusInput}' no admitido. Estados válidos: Pendiente, En revisión, Aprobada, Rechazada."
+                });
+            }
+
+            var solicitud = await _context.Solicitudes.FindAsync(id);
+            if (solicitud == null)
+            {
+                return NotFound(new { mensaje = $"La solicitud con ID {id} no fue encontrada." });
+            }
+
+            if (estadoNormalizado == "Aprobada")
+            {
+                var mascota = await _context.Mascotas.FindAsync(solicitud.MascotaId);
+                if (mascota == null)
+                {
+                    return NotFound(new { mensaje = "La mascota asociada a esta solicitud no existe." });
+                }
+
+                if (!string.Equals(mascota.Status?.Trim(), "Disponible", StringComparison.OrdinalIgnoreCase))
+                {
+                    return BadRequest(new
+                    {
+                        mensaje = $"La mascota '{mascota.Name}' no está disponible para adopción (Estado actual: {mascota.Status})."
+                    });
+                }
+
+                var strategy = _context.Database.CreateExecutionStrategy();
+                return await strategy.ExecuteAsync(async () =>
+                {
+                    var isRelational = _context.Database.IsRelational();
+                    var transaction = isRelational ? await _context.Database.BeginTransactionAsync() : null;
+
+                    try
+                    {
+                        // 1. Cambiar estado de la mascota a "En proceso"
+                        mascota.Status = "En proceso";
+
+                        // 2. Actualizar solicitud a "Aprobada"
+                        solicitud.Status = "Aprobada";
+                        if (!string.IsNullOrWhiteSpace(dto.Observacion))
+                        {
+                            solicitud.Observacion = dto.Observacion.Trim();
+                        }
+                        solicitud.FechaActualizacion = DateTime.UtcNow;
+
+                        // 3. Rechazar automáticamente otras solicitudes activas de la misma mascota
+                        var otrasActivas = await _context.Solicitudes
+                            .Where(s => s.MascotaId == solicitud.MascotaId &&
+                                        s.Id != solicitud.Id &&
+                                        (s.Status == "Pendiente" ||
+                                         s.Status == "En revisión" ||
+                                         s.Status == "En revision"))
+                            .ToListAsync();
+
+                        foreach (var otra in otrasActivas)
+                        {
+                            otra.Status = "Rechazada";
+                            otra.Observacion = "Rechazada automáticamente: la mascota fue asignada a otra solicitud aprobada.";
+                            otra.FechaActualizacion = DateTime.UtcNow;
+                        }
+
+                        await _context.SaveChangesAsync();
+
+                        if (transaction != null)
+                        {
+                            await transaction.CommitAsync();
+                        }
+
+                        return Ok(new SolicitudResponseDto
+                        {
+                            Id = solicitud.Id,
+                            MascotaId = solicitud.MascotaId,
+                            AdoptanteId = solicitud.AdoptanteId,
+                            PetName = solicitud.PetName,
+                            PetSpecies = solicitud.PetSpecies,
+                            ApplicantName = solicitud.ApplicantName,
+                            Phone = solicitud.Phone,
+                            Email = solicitud.Email,
+                            Address = solicitud.Address,
+                            HousingType = solicitud.HousingType,
+                            TimeAvailability = solicitud.TimeAvailability,
+                            PreviousExperience = solicitud.PreviousExperience,
+                            Reason = solicitud.Reason,
+                            Status = solicitud.Status,
+                            Observacion = solicitud.Observacion,
+                            FechaSolicitud = solicitud.FechaSolicitud,
+                            FechaActualizacion = solicitud.FechaActualizacion
+                        });
+                    }
+                    catch (Exception)
+                    {
+                        if (transaction != null)
+                        {
+                            await transaction.RollbackAsync();
+                        }
+                        throw;
+                    }
+                });
+            }
+            else
+            {
+                // En revisión, Rechazada o Pendiente
+                solicitud.Status = estadoNormalizado;
+                if (!string.IsNullOrWhiteSpace(dto.Observacion))
+                {
+                    solicitud.Observacion = dto.Observacion.Trim();
+                }
+                solicitud.FechaActualizacion = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new SolicitudResponseDto
+                {
+                    Id = solicitud.Id,
+                    MascotaId = solicitud.MascotaId,
+                    AdoptanteId = solicitud.AdoptanteId,
+                    PetName = solicitud.PetName,
+                    PetSpecies = solicitud.PetSpecies,
+                    ApplicantName = solicitud.ApplicantName,
+                    Phone = solicitud.Phone,
+                    Email = solicitud.Email,
+                    Address = solicitud.Address,
+                    HousingType = solicitud.HousingType,
+                    TimeAvailability = solicitud.TimeAvailability,
+                    PreviousExperience = solicitud.PreviousExperience,
+                    Reason = solicitud.Reason,
+                    Status = solicitud.Status,
+                    Observacion = solicitud.Observacion,
+                    FechaSolicitud = solicitud.FechaSolicitud,
+                    FechaActualizacion = solicitud.FechaActualizacion
+                });
+            }
+        }
+
         // GET: api/Solicitudes/mis-solicitudes
         // Consultar solicitudes realizadas por el adoptante autenticado
         [Authorize]

@@ -4,6 +4,7 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 
 interface SolicitudesApi {
@@ -30,5 +31,21 @@ interface SolicitudesApi {
     suspend fun obtenerSolicitudPorId(
         @Path("id") id: Int
     ): Response<SolicitudResponseDto>
-}
 
+    /**
+     * Consultar todas las solicitudes registradas (GET /api/Solicitudes/admin).
+     * Exclusivo para usuarios con rol Admin.
+     */
+    @GET("api/Solicitudes/admin")
+    suspend fun obtenerSolicitudesAdmin(): Response<List<SolicitudResponseDto>>
+
+    /**
+     * Actualizar el estado de una solicitud de adopción (PUT /api/Solicitudes/{id}/estado).
+     * Exclusivo para usuarios con rol Admin.
+     */
+    @PUT("api/Solicitudes/{id}/estado")
+    suspend fun actualizarEstadoSolicitud(
+        @Path("id") id: Int,
+        @Body request: ActualizarEstadoSolicitudRequestDto
+    ): Response<SolicitudResponseDto>
+}

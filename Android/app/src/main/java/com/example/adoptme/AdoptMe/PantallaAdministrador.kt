@@ -410,7 +410,7 @@ fun PantallaAdministrador(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "Gestión demostrativa almacenada localmente",
+                        text = "Solicitudes sincronizadas con el servidor",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                         fontWeight = FontWeight.Medium,

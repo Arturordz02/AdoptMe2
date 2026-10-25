@@ -89,3 +89,15 @@ data class SolicitudResponseDto(
     val fechaActualizacion: String? = null
 )
 
+/**
+ * DTO para actualizar el estado de una solicitud de adopción (PUT /api/Solicitudes/{id}/estado).
+ * Corresponde a ActualizarEstadoSolicitudDto.cs en el servidor.
+ */
+data class ActualizarEstadoSolicitudRequestDto(
+    @SerializedName("status")
+    val status: String,
+
+    @SerializedName("observacion")
+    val observacion: String? = null
+)
+

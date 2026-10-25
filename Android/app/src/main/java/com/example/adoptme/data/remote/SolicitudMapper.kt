@@ -20,22 +20,22 @@ fun AdoptionRequest.toCrearSolicitudDto(idMascotaConfirmado: Int = this.petId): 
 
 /**
  * Convierte la respuesta del backend SolicitudResponseDto a nuestro modelo de dominio AdoptionRequest.
+ * Los campos opcionales se normalizan de forma segura a cadena vacía sin texto "null".
  */
 fun SolicitudResponseDto.toDomain(): AdoptionRequest {
     return AdoptionRequest(
         petId = this.mascotaId,
-        petName = this.petName,
-        petSpecies = this.petSpecies,
-        applicantName = this.applicantName,
-        phone = this.phone,
-        email = this.email,
-        address = this.address,
-        housingType = this.housingType,
-        timeAvailability = this.timeAvailability ?: "",
-        previousExperience = this.previousExperience ?: "",
-        reason = this.reason,
-        status = this.status,
+        petName = this.petName?.takeIf { it != "null" } ?: "",
+        petSpecies = this.petSpecies?.takeIf { it != "null" } ?: "",
+        applicantName = this.applicantName?.takeIf { it != "null" } ?: "",
+        phone = this.phone?.takeIf { it != "null" } ?: "",
+        email = this.email?.takeIf { it != "null" } ?: "",
+        address = this.address?.takeIf { it != "null" } ?: "",
+        housingType = this.housingType?.takeIf { it != "null" } ?: "",
+        timeAvailability = this.timeAvailability?.takeIf { it != "null" } ?: "",
+        previousExperience = this.previousExperience?.takeIf { it != "null" } ?: "",
+        reason = this.reason?.takeIf { it != "null" } ?: "",
+        status = if (this.status.isNullOrBlank() || this.status == "null") "Pendiente" else this.status,
         id = this.id
     )
 }
-
