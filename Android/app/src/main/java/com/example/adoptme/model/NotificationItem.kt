@@ -1,4 +1,5 @@
-﻿package com.example.adoptme.model
+package com.example.adoptme.model
+
 
 data class NotificationItem(
     val title: String,

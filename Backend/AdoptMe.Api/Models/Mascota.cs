@@ -1,4 +1,4 @@
-﻿
+
 using System.ComponentModel.DataAnnotations;
 
 namespace AdoptMe.Api.Models
@@ -39,6 +39,11 @@ namespace AdoptMe.Api.Models
 
         [MaxLength(200)]
         public string CreadoPorCorreo { get; set; } = string.Empty;
+
+        // Coordenadas geográficas opcionales (Entrega #4)
+        public double? Latitud { get; set; }
+
+        public double? Longitud { get; set; }
 
         public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
     }

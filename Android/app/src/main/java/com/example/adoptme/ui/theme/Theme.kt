@@ -7,7 +7,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.sp
-import com.example.adoptme.SharedPreferences.Preferencias
+import com.example.adoptme.preferences.Preferencias
 
 // =====================================================
 // VERDE

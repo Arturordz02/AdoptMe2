@@ -3,6 +3,7 @@ package com.example.adoptme
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -27,17 +28,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.adoptme.AdoptMe.PantallaDetalleMascota
-import com.example.adoptme.SharedPreferences.Preferencias
-import com.example.adoptme.data.MascotaStorage
-import com.example.adoptme.data.local.AdoptMeDatabase
-import com.example.adoptme.data.local.MascotaVisitadaEntity
-import com.example.adoptme.data.normalizarCorreoUsuario
-import com.example.adoptme.data.remote.RetrofitClient
-import com.example.adoptme.data.remote.toPet
+import com.example.adoptme.api.RetrofitClient
+import com.example.adoptme.database.AdoptMeDatabase
+import com.example.adoptme.entity.MascotaVisitadaEntity
+import com.example.adoptme.mapper.toPet
 import com.example.adoptme.model.Pet
+import com.example.adoptme.preferences.Preferencias
+import com.example.adoptme.repository.MascotaStorage
+import com.example.adoptme.repository.normalizarCorreoUsuario
+import com.example.adoptme.screens.PantallaDetalleMascota
 import com.example.adoptme.ui.theme.AdoptMeTheme
-import android.util.Log
 
 class DetalleMascotaActivity : ComponentActivity() {
 
@@ -244,4 +244,3 @@ class DetalleMascotaActivity : ComponentActivity() {
         }
     }
 }
-

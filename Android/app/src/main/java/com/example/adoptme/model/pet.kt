@@ -15,7 +15,9 @@ data class Pet(
     val image: Int = 0,
     val photoBitmap: Bitmap? = null,
     val creadoPorCorreo: String = "",
-    val esRemota: Boolean = false
+    val esRemota: Boolean = false,
+    val latitud: Double? = null,
+    val longitud: Double? = null
 ) {
     /**
      * Clave única y estable para LazyColumn/LazyRow en Compose.

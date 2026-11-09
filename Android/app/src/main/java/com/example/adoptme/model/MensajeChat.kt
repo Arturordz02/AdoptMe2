@@ -1,5 +1,6 @@
 package com.example.adoptme.model
 
+
 /**
  * Modelo para un mensaje de chat entre Adoptante y Centro de Adopción.
  * Permite identificar al remitente, receptor, centro asociado por su ID único
@@ -27,4 +28,3 @@ data class ConversacionCentro(
     val ultimoTexto: String,
     val fecha: String
 )
-

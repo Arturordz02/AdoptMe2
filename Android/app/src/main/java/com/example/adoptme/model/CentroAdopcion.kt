@@ -1,5 +1,6 @@
 package com.example.adoptme.model
 
+
 /**
  * Modelo de datos para representar un Centro o Albergue de Adopción.
  * Cada centro cuenta con un ID numérico único e inmutable para aislar
@@ -14,6 +15,7 @@ data class CentroAdopcion(
     val telefono: String = "",
     val direccion: String = "",
     val contactoEjemplo: String = telefono,
-    val direccionEjemplo: String = direccion
+    val direccionEjemplo: String = direccion,
+    val latitud: Double? = null,
+    val longitud: Double? = null
 )
-
