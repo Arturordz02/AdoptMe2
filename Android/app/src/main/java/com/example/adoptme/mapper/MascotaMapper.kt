@@ -24,6 +24,8 @@ fun MascotaDto.toPet(): Pet {
         description = description,
         image = fallbackImage,
         photoBitmap = null,
+        imageUrl = imageUrl,
+        imagePublicId = imagePublicId,
         creadoPorCorreo = creadoPorCorreo,
         esRemota = id > 0,
         latitud = latitud,
@@ -42,7 +44,8 @@ fun Pet.toDto(): MascotaDto {
         location = location,
         status = status,
         description = description,
-        imageUrl = null,
+        imageUrl = imageUrl,
+        imagePublicId = imagePublicId,
         creadoPorCorreo = creadoPorCorreo,
         latitud = latitud,
         longitud = longitud

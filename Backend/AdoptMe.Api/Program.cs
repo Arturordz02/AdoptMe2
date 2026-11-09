@@ -1,4 +1,6 @@
+using AdoptMe.Api.Configuration;
 using AdoptMe.Api.Data;
+using AdoptMe.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -48,6 +50,25 @@ builder.Services.AddSwaggerGen(c =>
 
 builder.Services.AddScoped<IPasswordHasher<AdoptMe.Api.Models.Usuario>,
     PasswordHasher<AdoptMe.Api.Models.Usuario>>();
+
+// Configuración desacoplada y defensiva de Cloudinary (variables de entorno o UserSecrets)
+builder.Services.Configure<CloudinarySettings>(options =>
+{
+    options.CloudName = builder.Configuration["Cloudinary:CloudName"]
+        ?? Environment.GetEnvironmentVariable("CLOUDINARY_CLOUD_NAME")
+        ?? string.Empty;
+    options.ApiKey = builder.Configuration["Cloudinary:ApiKey"]
+        ?? Environment.GetEnvironmentVariable("CLOUDINARY_API_KEY")
+        ?? string.Empty;
+    options.ApiSecret = builder.Configuration["Cloudinary:ApiSecret"]
+        ?? Environment.GetEnvironmentVariable("CLOUDINARY_API_SECRET")
+        ?? string.Empty;
+    options.Folder = builder.Configuration["Cloudinary:Folder"]
+        ?? Environment.GetEnvironmentVariable("CLOUDINARY_FOLDER")
+        ?? "adoptme/mascotas";
+});
+
+builder.Services.AddScoped<IImageStorageService, CloudinaryImageStorageService>();
 
 builder.Services.AddDbContext<AdoptMeDbContext>(options =>
     options.UseNpgsql(

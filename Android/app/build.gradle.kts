@@ -87,6 +87,12 @@ dependencies {
     implementation("com.google.maps.android:maps-compose:4.4.1")
     implementation("com.google.android.gms:play-services-maps:19.0.0")
     implementation("com.google.android.gms:play-services-location:21.3.0")
+
+    // Coil: Carga asíncrona de imágenes remotas y caché (Fase A)
+    implementation("io.coil-kt:coil-compose:2.6.0")
+
+    // ExifInterface: Corrección de orientación de fotografías capturadas (Fase A)
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
 }
 
 secrets {

@@ -14,6 +14,8 @@ data class Pet(
     val description: String,
     val image: Int = 0,
     val photoBitmap: Bitmap? = null,
+    val imageUrl: String? = null,
+    val imagePublicId: String? = null,
     val creadoPorCorreo: String = "",
     val esRemota: Boolean = false,
     val latitud: Double? = null,
