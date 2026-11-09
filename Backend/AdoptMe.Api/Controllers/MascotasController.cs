@@ -75,6 +75,34 @@ namespace AdoptMe.Api.Controllers
                 });
             }
 
+            // Validación de coordenadas geográficas opcionales (Entrega #4)
+            if (mascota.Latitud.HasValue || mascota.Longitud.HasValue)
+            {
+                if (!mascota.Latitud.HasValue || !mascota.Longitud.HasValue)
+                {
+                    return BadRequest(new
+                    {
+                        mensaje = "Si se especifican coordenadas, tanto la latitud como la longitud deben estar presentes."
+                    });
+                }
+
+                if (mascota.Latitud.Value < -90.0 || mascota.Latitud.Value > 90.0)
+                {
+                    return BadRequest(new
+                    {
+                        mensaje = "La latitud debe estar comprendida entre -90 y 90 grados."
+                    });
+                }
+
+                if (mascota.Longitud.Value < -180.0 || mascota.Longitud.Value > 180.0)
+                {
+                    return BadRequest(new
+                    {
+                        mensaje = "La longitud debe estar comprendida entre -180 y 180 grados."
+                    });
+                }
+            }
+
             mascota.Id = 0;
             mascota.Name = mascota.Name.Trim();
             mascota.Species = mascota.Species.Trim();
@@ -183,6 +211,37 @@ namespace AdoptMe.Api.Controllers
             if (datos.ImageUrl != null)
             {
                 mascota.ImageUrl = datos.ImageUrl.Trim();
+            }
+
+            // Actualización y validación de coordenadas geográficas (Entrega #4)
+            if (datos.Latitud.HasValue || datos.Longitud.HasValue)
+            {
+                if (!datos.Latitud.HasValue || !datos.Longitud.HasValue)
+                {
+                    return BadRequest(new
+                    {
+                        mensaje = "Si se especifican coordenadas, tanto la latitud como la longitud deben estar presentes."
+                    });
+                }
+
+                if (datos.Latitud.Value < -90.0 || datos.Latitud.Value > 90.0)
+                {
+                    return BadRequest(new
+                    {
+                        mensaje = "La latitud debe estar comprendida entre -90 y 90 grados."
+                    });
+                }
+
+                if (datos.Longitud.Value < -180.0 || datos.Longitud.Value > 180.0)
+                {
+                    return BadRequest(new
+                    {
+                        mensaje = "La longitud debe estar comprendida entre -180 y 180 grados."
+                    });
+                }
+
+                mascota.Latitud = datos.Latitud;
+                mascota.Longitud = datos.Longitud;
             }
 
             // REGLA ESTRICTA: CreadoPorCorreo y FechaCreacion NUNCA se modifican desde el DTO.

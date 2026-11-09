@@ -1,5 +1,6 @@
 package com.example.adoptme.model
 
+
 data class AdoptionRequest(
     val petId: Int = 0,
     val petName: String,

@@ -1,38 +1,41 @@
 package com.example.adoptme
 
-import com.example.adoptme.AdoptMe.esFiltroComodin
-import com.example.adoptme.AdoptMe.filtrarMascotas
-import com.example.adoptme.AdoptMe.normalizarTexto
-import com.example.adoptme.AdoptMe.formatearEdadCanonica
-import com.example.adoptme.AdoptMe.esFormatoEdadValido
-import com.example.adoptme.AdoptMe.revisarPublicacion
-import com.example.adoptme.AdoptMe.UsuarioRegistrado
-import com.example.adoptme.data.normalizarCorreoUsuario
-import com.example.adoptme.data.obtenerClaveUsuario
-import com.example.adoptme.data.claveChat
-import com.example.adoptme.data.claveConversacionesCentro
+import com.example.adoptme.api.ActualizarPerfilRequest
+import com.example.adoptme.components.RespuestasTestCompatibilidad
+import com.example.adoptme.entity.MascotaVisitadaEntity
+import com.example.adoptme.mapper.toCrearSolicitudDto
+import com.example.adoptme.mapper.toDomain
+import com.example.adoptme.mapper.toDto
+import com.example.adoptme.mapper.toPet
 import com.example.adoptme.model.AdoptionRequest
 import com.example.adoptme.model.CentroAdopcion
 import com.example.adoptme.model.ConversacionCentro
+import com.example.adoptme.model.CrearSolicitudRequestDto
+import com.example.adoptme.model.MascotaDto
 import com.example.adoptme.model.MensajeChat
 import com.example.adoptme.model.NotificationItem
 import com.example.adoptme.model.Pet
-import com.example.adoptme.data.PetRepository
-import com.example.adoptme.data.convertirPetAJson
-import com.example.adoptme.data.parsearJsonAPet
-import com.example.adoptme.data.sincronizarPublicacionesUsuario
+import com.example.adoptme.model.SolicitudResponseDto
+import com.example.adoptme.rules.localizarMascotaParaAprobacion
+import com.example.adoptme.rules.puedeAprobarSolicitud
+import com.example.adoptme.repository.PetRepository
+import com.example.adoptme.repository.claveChat
+import com.example.adoptme.repository.claveConversacionesCentro
+import com.example.adoptme.repository.convertirPetAJson
+import com.example.adoptme.repository.normalizarCorreoUsuario
+import com.example.adoptme.repository.obtenerClaveUsuario
+import com.example.adoptme.repository.parsearJsonAPet
+import com.example.adoptme.repository.sincronizarPublicacionesUsuario
+import com.example.adoptme.screens.PantallaInicioSesion
+import com.example.adoptme.screens.PantallaPrincipalAdoptante
+import com.example.adoptme.model.UsuarioRegistrado
+import com.example.adoptme.screens.esFiltroComodin
+import com.example.adoptme.screens.esFormatoEdadValido
+import com.example.adoptme.screens.filtrarMascotas
+import com.example.adoptme.utils.formatearEdadCanonica
+import com.example.adoptme.screens.normalizarTexto
+import com.example.adoptme.screens.revisarPublicacion
 import org.json.JSONObject
-import com.example.adoptme.data.remote.MascotaDto
-import com.example.adoptme.data.remote.toPet
-import com.example.adoptme.data.remote.toDto
-import com.example.adoptme.data.remote.CrearSolicitudRequestDto
-import com.example.adoptme.data.remote.SolicitudResponseDto
-import com.example.adoptme.data.remote.ActualizarPerfilRequest
-import com.example.adoptme.data.local.MascotaVisitadaEntity
-import com.example.adoptme.data.remote.toCrearSolicitudDto
-import com.example.adoptme.data.remote.toDomain
-import com.example.adoptme.localizarMascotaParaAprobacion
-import com.example.adoptme.puedeAprobarSolicitud
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -109,49 +112,49 @@ class ExampleUnitTest {
     @Test
     fun esFormatoCorreoValido_validaFormatosCorrectosEIncorrectos() {
         // Formatos válidos (incluyendo dominios peruanos comunes)
-        assertTrue(com.example.adoptme.AdoptMe.esFormatoCorreoValido("usuario@adoptme.com"))
-        assertTrue(com.example.adoptme.AdoptMe.esFormatoCorreoValido("ana.morales@gmail.com"))
-        assertTrue(com.example.adoptme.AdoptMe.esFormatoCorreoValido("test+adopt@empresa.org"))
-        assertTrue(com.example.adoptme.AdoptMe.esFormatoCorreoValido("lucia.quispe@correo.pe"))
-        assertTrue(com.example.adoptme.AdoptMe.esFormatoCorreoValido("contacto@refugio.com.pe"))
-        assertTrue(com.example.adoptme.AdoptMe.esFormatoCorreoValido("adopciones@veterinaria.edu.pe"))
+        assertTrue(com.example.adoptme.screens.esFormatoCorreoValido("usuario@adoptme.com"))
+        assertTrue(com.example.adoptme.screens.esFormatoCorreoValido("ana.morales@gmail.com"))
+        assertTrue(com.example.adoptme.screens.esFormatoCorreoValido("test+adopt@empresa.org"))
+        assertTrue(com.example.adoptme.screens.esFormatoCorreoValido("lucia.quispe@correo.pe"))
+        assertTrue(com.example.adoptme.screens.esFormatoCorreoValido("contacto@refugio.com.pe"))
+        assertTrue(com.example.adoptme.screens.esFormatoCorreoValido("adopciones@veterinaria.edu.pe"))
 
         // Formatos inválidos
-        assertFalse(com.example.adoptme.AdoptMe.esFormatoCorreoValido(""))
-        assertFalse(com.example.adoptme.AdoptMe.esFormatoCorreoValido("sinarroba"))
-        assertFalse(com.example.adoptme.AdoptMe.esFormatoCorreoValido("usuario@"))
-        assertFalse(com.example.adoptme.AdoptMe.esFormatoCorreoValido("usuario@dominio"))
-        assertFalse(com.example.adoptme.AdoptMe.esFormatoCorreoValido("@dominio.com"))
-        assertFalse(com.example.adoptme.AdoptMe.esFormatoCorreoValido("usuario@.com"))
+        assertFalse(com.example.adoptme.screens.esFormatoCorreoValido(""))
+        assertFalse(com.example.adoptme.screens.esFormatoCorreoValido("sinarroba"))
+        assertFalse(com.example.adoptme.screens.esFormatoCorreoValido("usuario@"))
+        assertFalse(com.example.adoptme.screens.esFormatoCorreoValido("usuario@dominio"))
+        assertFalse(com.example.adoptme.screens.esFormatoCorreoValido("@dominio.com"))
+        assertFalse(com.example.adoptme.screens.esFormatoCorreoValido("usuario@.com"))
     }
 
     @Test
     fun normalizarTelefonoPeruano_eliminaEspaciosYNormaliza() {
-        assertEquals("999888777", com.example.adoptme.AdoptMe.normalizarTelefonoPeruano("999888777"))
-        assertEquals("999888777", com.example.adoptme.AdoptMe.normalizarTelefonoPeruano("999 888 777"))
-        assertEquals("999888777", com.example.adoptme.AdoptMe.normalizarTelefonoPeruano("  999  888  777  "))
-        assertEquals("912345678", com.example.adoptme.AdoptMe.normalizarTelefonoPeruano(" 912 345 678 "))
+        assertEquals("999888777", com.example.adoptme.screens.normalizarTelefonoPeruano("999888777"))
+        assertEquals("999888777", com.example.adoptme.screens.normalizarTelefonoPeruano("999 888 777"))
+        assertEquals("999888777", com.example.adoptme.screens.normalizarTelefonoPeruano("  999  888  777  "))
+        assertEquals("912345678", com.example.adoptme.screens.normalizarTelefonoPeruano(" 912 345 678 "))
     }
 
     @Test
     fun esTelefonoPeruanoValido_validaFormatosCorrectosEIncorrectos() {
         // Ejemplos válidos
-        assertTrue(com.example.adoptme.AdoptMe.esTelefonoPeruanoValido("999888777"))
-        assertTrue(com.example.adoptme.AdoptMe.esTelefonoPeruanoValido("999 888 777"))
-        assertTrue(com.example.adoptme.AdoptMe.esTelefonoPeruanoValido(" 912 345 678 "))
+        assertTrue(com.example.adoptme.screens.esTelefonoPeruanoValido("999888777"))
+        assertTrue(com.example.adoptme.screens.esTelefonoPeruanoValido("999 888 777"))
+        assertTrue(com.example.adoptme.screens.esTelefonoPeruanoValido(" 912 345 678 "))
 
         // Ejemplos inválidos requeridos
-        assertFalse(com.example.adoptme.AdoptMe.esTelefonoPeruanoValido("999999")) // Menos de 9 dígitos
-        assertFalse(com.example.adoptme.AdoptMe.esTelefonoPeruanoValido("888888888")) // No empieza con 9
-        assertFalse(com.example.adoptme.AdoptMe.esTelefonoPeruanoValido("9998887777")) // Más de 9 dígitos
-        assertFalse(com.example.adoptme.AdoptMe.esTelefonoPeruanoValido("999abc777")) // Letras
-        assertFalse(com.example.adoptme.AdoptMe.esTelefonoPeruanoValido("999-888-777")) // Símbolos
-        assertFalse(com.example.adoptme.AdoptMe.esTelefonoPeruanoValido("")) // Vacío
+        assertFalse(com.example.adoptme.screens.esTelefonoPeruanoValido("999999")) // Menos de 9 dígitos
+        assertFalse(com.example.adoptme.screens.esTelefonoPeruanoValido("888888888")) // No empieza con 9
+        assertFalse(com.example.adoptme.screens.esTelefonoPeruanoValido("9998887777")) // Más de 9 dígitos
+        assertFalse(com.example.adoptme.screens.esTelefonoPeruanoValido("999abc777")) // Letras
+        assertFalse(com.example.adoptme.screens.esTelefonoPeruanoValido("999-888-777")) // Símbolos
+        assertFalse(com.example.adoptme.screens.esTelefonoPeruanoValido("")) // Vacío
     }
 
     @Test
     fun usuarioRegistrado_asignaRolAdoptantePorDefecto() {
-        val nuevoUsuario = com.example.adoptme.AdoptMe.UsuarioRegistrado(
+        val nuevoUsuario = com.example.adoptme.model.UsuarioRegistrado(
             nombre = "Carlos Díaz",
             correo = "carlos@correo.pe",
             contrasena = "secreto123",
@@ -170,23 +173,23 @@ class ExampleUnitTest {
 
     @Test
     fun testCompatibilidad_noPermiteAvanzarConRespuestaVacia() {
-        assertFalse(com.example.adoptme.AdoptMe.puedeAvanzarPregunta(""))
-        assertFalse(com.example.adoptme.AdoptMe.puedeAvanzarPregunta("   "))
-        assertTrue(com.example.adoptme.AdoptMe.puedeAvanzarPregunta("Departamento"))
-        assertTrue(com.example.adoptme.AdoptMe.puedeAvanzarPregunta("Perro"))
+        assertFalse(com.example.adoptme.components.puedeAvanzarPregunta(""))
+        assertFalse(com.example.adoptme.components.puedeAvanzarPregunta("   "))
+        assertTrue(com.example.adoptme.components.puedeAvanzarPregunta("Departamento"))
+        assertTrue(com.example.adoptme.components.puedeAvanzarPregunta("Perro"))
     }
 
     @Test
     fun testCompatibilidad_normalizarTextoCompatibilidad_limpiaTildesYEspacios() {
-        assertEquals("perro", com.example.adoptme.AdoptMe.normalizarTextoCompatibilidad("  Pérro  "))
-        assertEquals("gato", com.example.adoptme.AdoptMe.normalizarTextoCompatibilidad("GATÓ"))
-        assertEquals("en proceso", com.example.adoptme.AdoptMe.normalizarTextoCompatibilidad("En Proceso"))
-        assertEquals("disponible", com.example.adoptme.AdoptMe.normalizarTextoCompatibilidad(" DISPONIBLE "))
+        assertEquals("perro", com.example.adoptme.components.normalizarTextoCompatibilidad("  Pérro  "))
+        assertEquals("gato", com.example.adoptme.components.normalizarTextoCompatibilidad("GATÓ"))
+        assertEquals("en proceso", com.example.adoptme.components.normalizarTextoCompatibilidad("En Proceso"))
+        assertEquals("disponible", com.example.adoptme.components.normalizarTextoCompatibilidad(" DISPONIBLE "))
     }
 
     @Test
     fun testCompatibilidad_reiniciarRespuestasTest_limpiaTodosLosCampos() {
-        val reiniciado = com.example.adoptme.AdoptMe.reiniciarRespuestasTest()
+        val reiniciado = com.example.adoptme.components.reiniciarRespuestasTest()
         assertEquals("", reiniciado.vivienda)
         assertEquals("", reiniciado.tiempoDisponible)
         assertEquals("", reiniciado.experiencia)
@@ -199,14 +202,14 @@ class ExampleUnitTest {
         val gato = Pet(2, "Michi", "Gato", "Siamés", "1 año", "Hembra", "Lima", "Disponible", "Cariñoso", 0)
         val mascotas = listOf(perro, gato)
 
-        val respuestasPreferenciaPerro = com.example.adoptme.AdoptMe.RespuestasTestCompatibilidad(
+        val respuestasPreferenciaPerro = com.example.adoptme.components.RespuestasTestCompatibilidad(
             vivienda = "Casa con patio",
             tiempoDisponible = "Más de 2 horas",
             experiencia = "He tenido antes",
             especiePreferida = "Perro"
         )
 
-        val resultados = com.example.adoptme.AdoptMe.evaluarTestCompatibilidad(mascotas, respuestasPreferenciaPerro)
+        val resultados = com.example.adoptme.components.evaluarTestCompatibilidad(mascotas, respuestasPreferenciaPerro)
         assertEquals(2, resultados.size)
         // Bobby (perro) debe estar primero por tener mayor puntaje
         assertEquals("Bobby", resultados[0].mascota.name)
@@ -221,14 +224,14 @@ class ExampleUnitTest {
         val conejo = Pet(3, "Tambor", "Conejo", "Enano", "6 meses", "Macho", "Lima", "Disponible", "Amigable", 0)
         val mascotas = listOf(perro, gato, conejo)
 
-        val respuestas = com.example.adoptme.AdoptMe.RespuestasTestCompatibilidad(
+        val respuestas = com.example.adoptme.components.RespuestasTestCompatibilidad(
             vivienda = "Departamento pequeño",
             tiempoDisponible = "Menos de 1 hora",
             experiencia = "Primera vez",
             especiePreferida = "Gato"
         )
 
-        val resultados = com.example.adoptme.AdoptMe.evaluarTestCompatibilidad(mascotas, respuestas)
+        val resultados = com.example.adoptme.components.evaluarTestCompatibilidad(mascotas, respuestas)
         assertTrue(resultados.isNotEmpty())
         for (i in 0 until resultados.size - 1) {
             assertTrue(
@@ -245,14 +248,14 @@ class ExampleUnitTest {
         val enProceso = Pet(3, "Pelusa", "Gato", "Común", "1 año", "Hembra", "Lima", "En proceso", "Dócil", 0)
         val mascotas = listOf(disponible, adoptada, enProceso)
 
-        val respuestas = com.example.adoptme.AdoptMe.RespuestasTestCompatibilidad(
+        val respuestas = com.example.adoptme.components.RespuestasTestCompatibilidad(
             vivienda = "Casa con jardín",
             tiempoDisponible = "1 a 2 horas",
             experiencia = "He tenido antes",
             especiePreferida = "Sin preferencia (Cualquiera)"
         )
 
-        val resultados = com.example.adoptme.AdoptMe.evaluarTestCompatibilidad(mascotas, respuestas)
+        val resultados = com.example.adoptme.components.evaluarTestCompatibilidad(mascotas, respuestas)
         // La mascota 'Adoptada' no debe figurar en los resultados
         assertFalse(resultados.any { it.mascota.name == "Fido" })
         assertTrue(resultados.any { it.mascota.name == "Toby" })
@@ -265,9 +268,9 @@ class ExampleUnitTest {
         val enProceso = Pet(2, "Pelusa", "Gato", "Común", "1 año", "Hembra", "Lima", "En proceso", "Dócil", 0)
         val adoptada = Pet(3, "Fido", "Perro", "Mestizo", "4 años", "Macho", "Lima", "Adoptada", "Tranquilo", 0)
 
-        assertTrue(com.example.adoptme.AdoptMe.permiteSolicitarAdopcion(disponible))
-        assertFalse(com.example.adoptme.AdoptMe.permiteSolicitarAdopcion(enProceso))
-        assertFalse(com.example.adoptme.AdoptMe.permiteSolicitarAdopcion(adoptada))
+        assertTrue(com.example.adoptme.components.permiteSolicitarAdopcion(disponible))
+        assertFalse(com.example.adoptme.components.permiteSolicitarAdopcion(enProceso))
+        assertFalse(com.example.adoptme.components.permiteSolicitarAdopcion(adoptada))
     }
 
     @Test
@@ -277,14 +280,14 @@ class ExampleUnitTest {
         val loro = Pet(2, "Pepe", "Ave", "Loro", "2 años", "Macho", "Lima", "Disponible", "Hablador", 0)
         val mascotas = listOf(adoptada, loro)
 
-        val respuestas = com.example.adoptme.AdoptMe.RespuestasTestCompatibilidad(
+        val respuestas = com.example.adoptme.components.RespuestasTestCompatibilidad(
             vivienda = "Departamento",
             tiempoDisponible = "1 a 2 horas",
             experiencia = "He tenido antes",
             especiePreferida = "Perro"
         )
 
-        val resultados = com.example.adoptme.AdoptMe.evaluarTestCompatibilidad(mascotas, respuestas)
+        val resultados = com.example.adoptme.components.evaluarTestCompatibilidad(mascotas, respuestas)
         assertTrue(resultados.isEmpty())
     }
 
@@ -295,60 +298,60 @@ class ExampleUnitTest {
     @Test
     fun testPublicacion_esEspecieValida_aceptaSoloPerroGatoConejo() {
         // Especies válidas (RN-02) con diferentes mayúsculas y tildes
-        assertTrue(com.example.adoptme.AdoptMe.esEspecieValida("Perro"))
-        assertTrue(com.example.adoptme.AdoptMe.esEspecieValida("perro"))
-        assertTrue(com.example.adoptme.AdoptMe.esEspecieValida("Pérro"))
-        assertTrue(com.example.adoptme.AdoptMe.esEspecieValida("Gato"))
-        assertTrue(com.example.adoptme.AdoptMe.esEspecieValida("GATO"))
-        assertTrue(com.example.adoptme.AdoptMe.esEspecieValida("gato"))
-        assertTrue(com.example.adoptme.AdoptMe.esEspecieValida("Conejo"))
-        assertTrue(com.example.adoptme.AdoptMe.esEspecieValida("conejo"))
+        assertTrue(com.example.adoptme.screens.esEspecieValida("Perro"))
+        assertTrue(com.example.adoptme.screens.esEspecieValida("perro"))
+        assertTrue(com.example.adoptme.screens.esEspecieValida("Pérro"))
+        assertTrue(com.example.adoptme.screens.esEspecieValida("Gato"))
+        assertTrue(com.example.adoptme.screens.esEspecieValida("GATO"))
+        assertTrue(com.example.adoptme.screens.esEspecieValida("gato"))
+        assertTrue(com.example.adoptme.screens.esEspecieValida("Conejo"))
+        assertTrue(com.example.adoptme.screens.esEspecieValida("conejo"))
 
         // Especies no admitidas
-        assertFalse(com.example.adoptme.AdoptMe.esEspecieValida("Loro"))
-        assertFalse(com.example.adoptme.AdoptMe.esEspecieValida("Pez"))
-        assertFalse(com.example.adoptme.AdoptMe.esEspecieValida("Hamster"))
-        assertFalse(com.example.adoptme.AdoptMe.esEspecieValida(""))
-        assertFalse(com.example.adoptme.AdoptMe.esEspecieValida("   "))
+        assertFalse(com.example.adoptme.screens.esEspecieValida("Loro"))
+        assertFalse(com.example.adoptme.screens.esEspecieValida("Pez"))
+        assertFalse(com.example.adoptme.screens.esEspecieValida("Hamster"))
+        assertFalse(com.example.adoptme.screens.esEspecieValida(""))
+        assertFalse(com.example.adoptme.screens.esEspecieValida("   "))
     }
 
     @Test
     fun testPublicacion_esFormatoEdadValido_aceptaYRechazaFormatos() {
         // Formatos válidos requeridos
-        assertTrue(com.example.adoptme.AdoptMe.esFormatoEdadValido("1 año"))
-        assertTrue(com.example.adoptme.AdoptMe.esFormatoEdadValido("2 años"))
-        assertTrue(com.example.adoptme.AdoptMe.esFormatoEdadValido("6 meses"))
-        assertTrue(com.example.adoptme.AdoptMe.esFormatoEdadValido("10 meses"))
-        assertTrue(com.example.adoptme.AdoptMe.esFormatoEdadValido("1 ano"))
-        assertTrue(com.example.adoptme.AdoptMe.esFormatoEdadValido("2 anos"))
+        assertTrue(com.example.adoptme.screens.esFormatoEdadValido("1 año"))
+        assertTrue(com.example.adoptme.screens.esFormatoEdadValido("2 años"))
+        assertTrue(com.example.adoptme.screens.esFormatoEdadValido("6 meses"))
+        assertTrue(com.example.adoptme.screens.esFormatoEdadValido("10 meses"))
+        assertTrue(com.example.adoptme.screens.esFormatoEdadValido("1 ano"))
+        assertTrue(com.example.adoptme.screens.esFormatoEdadValido("2 anos"))
 
         // Formatos inválidos requeridos
-        assertFalse(com.example.adoptme.AdoptMe.esFormatoEdadValido("")) // Vacío
-        assertFalse(com.example.adoptme.AdoptMe.esFormatoEdadValido("   ")) // Espacios
-        assertFalse(com.example.adoptme.AdoptMe.esFormatoEdadValido("dos años")) // Texto sin número
-        assertFalse(com.example.adoptme.AdoptMe.esFormatoEdadValido("-2 años")) // Número negativo
-        assertFalse(com.example.adoptme.AdoptMe.esFormatoEdadValido("-1 año")) // Número negativo
-        assertFalse(com.example.adoptme.AdoptMe.esFormatoEdadValido("0 años")) // Cero
-        assertFalse(com.example.adoptme.AdoptMe.esFormatoEdadValido("2 años y medio")) // Formato desconocido
-        assertFalse(com.example.adoptme.AdoptMe.esFormatoEdadValido("perro")) // Texto arbitrario
+        assertFalse(com.example.adoptme.screens.esFormatoEdadValido("")) // Vacío
+        assertFalse(com.example.adoptme.screens.esFormatoEdadValido("   ")) // Espacios
+        assertFalse(com.example.adoptme.screens.esFormatoEdadValido("dos años")) // Texto sin número
+        assertFalse(com.example.adoptme.screens.esFormatoEdadValido("-2 años")) // Número negativo
+        assertFalse(com.example.adoptme.screens.esFormatoEdadValido("-1 año")) // Número negativo
+        assertFalse(com.example.adoptme.screens.esFormatoEdadValido("0 años")) // Cero
+        assertFalse(com.example.adoptme.screens.esFormatoEdadValido("2 años y medio")) // Formato desconocido
+        assertFalse(com.example.adoptme.screens.esFormatoEdadValido("perro")) // Texto arbitrario
     }
 
     @Test
     fun testPublicacion_esSexoValido_soloAceptaMachoOHembra() {
-        assertTrue(com.example.adoptme.AdoptMe.esSexoValido("Macho"))
-        assertTrue(com.example.adoptme.AdoptMe.esSexoValido("macho"))
-        assertTrue(com.example.adoptme.AdoptMe.esSexoValido("Hembra"))
-        assertTrue(com.example.adoptme.AdoptMe.esSexoValido("hembra"))
+        assertTrue(com.example.adoptme.screens.esSexoValido("Macho"))
+        assertTrue(com.example.adoptme.screens.esSexoValido("macho"))
+        assertTrue(com.example.adoptme.screens.esSexoValido("Hembra"))
+        assertTrue(com.example.adoptme.screens.esSexoValido("hembra"))
 
-        assertFalse(com.example.adoptme.AdoptMe.esSexoValido(""))
-        assertFalse(com.example.adoptme.AdoptMe.esSexoValido("Indefinido"))
-        assertFalse(com.example.adoptme.AdoptMe.esSexoValido("Otro"))
+        assertFalse(com.example.adoptme.screens.esSexoValido(""))
+        assertFalse(com.example.adoptme.screens.esSexoValido("Indefinido"))
+        assertFalse(com.example.adoptme.screens.esSexoValido("Otro"))
     }
 
     @Test
     fun testPublicacion_validarDatosPublicacion_detectaCamposFaltantes() {
         // Datos válidos
-        val validacionExitosa = com.example.adoptme.AdoptMe.validarDatosPublicacion(
+        val validacionExitosa = com.example.adoptme.screens.validarDatosPublicacion(
             nombre = "Bobby",
             especie = "Perro",
             raza = "Mestizo",
@@ -363,7 +366,7 @@ class ExampleUnitTest {
         assertNull(validacionExitosa.errorEdad)
 
         // Datos con campos vacíos y especie no permitida
-        val validacionInvalida = com.example.adoptme.AdoptMe.validarDatosPublicacion(
+        val validacionInvalida = com.example.adoptme.screens.validarDatosPublicacion(
             nombre = "",
             especie = "Loro",
             raza = "",
@@ -384,7 +387,7 @@ class ExampleUnitTest {
 
     @Test
     fun testPublicacion_crearPublicacionMascota_asignaEstadoDisponibleEIdValido() {
-        val nuevaMascota = com.example.adoptme.AdoptMe.crearPublicacionMascota(
+        val nuevaMascota = com.example.adoptme.screens.crearPublicacionMascota(
             nombre = "Michi",
             especie = "gato",
             raza = "Siamés",
@@ -411,10 +414,10 @@ class ExampleUnitTest {
 
     @Test
     fun testPublicacion_diferenciacionEntreMascotaPublicadaYBase() {
-        val repositorio = com.example.adoptme.data.PetRepository()
+        val repositorio = com.example.adoptme.repository.PetRepository()
         val mascotasBase = repositorio.getPets()
 
-        val mascotaUsuario = com.example.adoptme.AdoptMe.crearPublicacionMascota(
+        val mascotaUsuario = com.example.adoptme.screens.crearPublicacionMascota(
             nombre = "Pelusa",
             especie = "Conejo",
             raza = "Enano",
@@ -444,7 +447,7 @@ class ExampleUnitTest {
         val correoDuenio = "adoptante@correo.pe"
         val correoOtroUsuario = "otro@correo.pe"
 
-        val mascotaPublicada = com.example.adoptme.AdoptMe.crearPublicacionMascota(
+        val mascotaPublicada = com.example.adoptme.screens.crearPublicacionMascota(
             nombre = "Boby",
             especie = "Perro",
             raza = "Mestizo",
@@ -468,14 +471,14 @@ class ExampleUnitTest {
         assertFalse(esPropiaParaOtro)
 
         // 3. Bloqueo de solicitud de adopción si es publicación propia
-        val puedeDuenioSolicitar = com.example.adoptme.AdoptMe.permiteSolicitarAdopcion(
+        val puedeDuenioSolicitar = com.example.adoptme.components.permiteSolicitarAdopcion(
             mascota = mascotaPublicada,
             esPublicacionPropia = esPropiaParaDuenio
         )
         assertFalse(puedeDuenioSolicitar)
 
         // 4. Otro usuario sí puede solicitar adopción si está Disponible
-        val puedeOtroSolicitar = com.example.adoptme.AdoptMe.permiteSolicitarAdopcion(
+        val puedeOtroSolicitar = com.example.adoptme.components.permiteSolicitarAdopcion(
             mascota = mascotaPublicada,
             esPublicacionPropia = esPropiaParaOtro
         )
@@ -563,38 +566,38 @@ class ExampleUnitTest {
 
     @Test
     fun testNombresLimpios_filtrosInicio() {
-        assertTrue(com.example.adoptme.AdoptMe.esFiltroLibre("Todos"))
-        assertTrue(com.example.adoptme.AdoptMe.esFiltroLibre("Cualquier sexo"))
-        assertFalse(com.example.adoptme.AdoptMe.esFiltroLibre("Perro"))
+        assertTrue(com.example.adoptme.screens.esFiltroLibre("Todos"))
+        assertTrue(com.example.adoptme.screens.esFiltroLibre("Cualquier sexo"))
+        assertFalse(com.example.adoptme.screens.esFiltroLibre("Perro"))
 
         val perro = Pet(1, "Rocky", "Perro", "Boxer", "2 años", "Macho", "Lima", "Disponible", "Juguetón", 0)
-        assertTrue(com.example.adoptme.AdoptMe.filtrarEspecie(perro, "perro"))
-        assertTrue(com.example.adoptme.AdoptMe.filtrarEspecie(perro, "Todos"))
-        assertFalse(com.example.adoptme.AdoptMe.filtrarEspecie(perro, "gato"))
+        assertTrue(com.example.adoptme.screens.filtrarEspecie(perro, "perro"))
+        assertTrue(com.example.adoptme.screens.filtrarEspecie(perro, "Todos"))
+        assertFalse(com.example.adoptme.screens.filtrarEspecie(perro, "gato"))
 
-        assertTrue(com.example.adoptme.AdoptMe.filtrarSexo(perro, "macho"))
-        assertTrue(com.example.adoptme.AdoptMe.filtrarUbicacion(perro, "lima"))
-        assertTrue(com.example.adoptme.AdoptMe.filtrarEstado(perro, "disponible"))
+        assertTrue(com.example.adoptme.screens.filtrarSexo(perro, "macho"))
+        assertTrue(com.example.adoptme.screens.filtrarUbicacion(perro, "lima"))
+        assertTrue(com.example.adoptme.screens.filtrarEstado(perro, "disponible"))
     }
 
     @Test
     fun testNombresLimpios_testCompatibilidad() {
-        assertTrue(com.example.adoptme.AdoptMe.respuestaValida("Departamento"))
-        assertFalse(com.example.adoptme.AdoptMe.respuestaValida(""))
+        assertTrue(com.example.adoptme.components.respuestaValida("Departamento"))
+        assertFalse(com.example.adoptme.components.respuestaValida(""))
 
-        assertEquals("gato", com.example.adoptme.AdoptMe.limpiarTexto("  GATÓ  "))
+        assertEquals("gato", com.example.adoptme.components.limpiarTexto("  GATÓ  "))
 
-        val respuestasLimpias = com.example.adoptme.AdoptMe.reiniciarTest()
+        val respuestasLimpias = com.example.adoptme.components.reiniciarTest()
         assertEquals("", respuestasLimpias.vivienda)
         assertEquals("", respuestasLimpias.tiempoDisponible)
 
         val mascota = Pet(1, "Michi", "Gato", "Siamés", "1 año", "Hembra", "Lima", "Disponible", "Cariñosa", 0)
-        assertTrue(com.example.adoptme.AdoptMe.puedeAdoptar(mascota, esPublicacionPropia = false))
-        assertFalse(com.example.adoptme.AdoptMe.puedeAdoptar(mascota, esPublicacionPropia = true))
+        assertTrue(com.example.adoptme.components.puedeAdoptar(mascota, esPublicacionPropia = false))
+        assertFalse(com.example.adoptme.components.puedeAdoptar(mascota, esPublicacionPropia = true))
 
-        val coincidencias = com.example.adoptme.AdoptMe.buscarCoincidencias(
+        val coincidencias = com.example.adoptme.components.buscarCoincidencias(
             listOf(mascota),
-            com.example.adoptme.AdoptMe.RespuestasTestCompatibilidad(
+            com.example.adoptme.components.RespuestasTestCompatibilidad(
                 vivienda = "Departamento",
                 tiempoDisponible = "1 hora",
                 experiencia = "Primera vez",
@@ -607,7 +610,7 @@ class ExampleUnitTest {
 
     @Test
     fun testNombresLimpios_publicarMascota() {
-        val validacion = com.example.adoptme.AdoptMe.revisarPublicacion(
+        val validacion = com.example.adoptme.screens.revisarPublicacion(
             nombre = "Coco",
             especie = "Conejo",
             raza = "Enano",
@@ -618,7 +621,7 @@ class ExampleUnitTest {
         )
         assertTrue(validacion.esValido)
 
-        val nueva = com.example.adoptme.AdoptMe.crearMascota(
+        val nueva = com.example.adoptme.screens.crearMascota(
             nombre = "Coco",
             especie = "Conejo",
             raza = "Enano",
@@ -848,24 +851,24 @@ class ExampleUnitTest {
 
     @Test
     fun testPerfil_validacionRechazaTelefonoPeruanoInvalido() {
-        assertFalse(com.example.adoptme.AdoptMe.esTelefonoPeruanoValido(""))
-        assertFalse(com.example.adoptme.AdoptMe.esTelefonoPeruanoValido("888888888")) // No empieza con 9
-        assertFalse(com.example.adoptme.AdoptMe.esTelefonoPeruanoValido("999999")) // Menos de 9 dígitos
-        assertFalse(com.example.adoptme.AdoptMe.esTelefonoPeruanoValido("9999999999")) // Más de 9 dígitos
-        assertFalse(com.example.adoptme.AdoptMe.esTelefonoPeruanoValido("999abc777")) // Contiene letras
+        assertFalse(com.example.adoptme.screens.esTelefonoPeruanoValido(""))
+        assertFalse(com.example.adoptme.screens.esTelefonoPeruanoValido("888888888")) // No empieza con 9
+        assertFalse(com.example.adoptme.screens.esTelefonoPeruanoValido("999999")) // Menos de 9 dígitos
+        assertFalse(com.example.adoptme.screens.esTelefonoPeruanoValido("9999999999")) // Más de 9 dígitos
+        assertFalse(com.example.adoptme.screens.esTelefonoPeruanoValido("999abc777")) // Contiene letras
     }
 
     @Test
     fun testPerfil_validacionAceptaYNormalizaTelefonoPeruano() {
         val telConEspacios = " 987 654 321 "
-        assertTrue(com.example.adoptme.AdoptMe.esTelefonoPeruanoValido(telConEspacios))
-        val telNormalizado = com.example.adoptme.AdoptMe.normalizarTelefonoPeruano(telConEspacios)
+        assertTrue(com.example.adoptme.screens.esTelefonoPeruanoValido(telConEspacios))
+        val telNormalizado = com.example.adoptme.screens.normalizarTelefonoPeruano(telConEspacios)
         assertEquals("987654321", telNormalizado)
     }
 
     @Test
     fun testPerfil_correoPermaneceInvariableEnActualizacion() {
-        val usuarioOriginal = com.example.adoptme.AdoptMe.UsuarioRegistrado(
+        val usuarioOriginal = com.example.adoptme.model.UsuarioRegistrado(
             nombre = "Juan Pérez",
             correo = "juan@adoptme.com",
             telefono = "999888777",
@@ -909,7 +912,7 @@ class ExampleUnitTest {
         val esPropia = mascotaPropia.creadoPorCorreo.isNotBlank() &&
                 mascotaPropia.creadoPorCorreo.equals(correoUsuario, ignoreCase = true)
 
-        assertFalse(com.example.adoptme.AdoptMe.puedeAdoptar(mascotaPropia, esPublicacionPropia = esPropia))
+        assertFalse(com.example.adoptme.components.puedeAdoptar(mascotaPropia, esPublicacionPropia = esPropia))
     }
 
     @Test
@@ -931,7 +934,7 @@ class ExampleUnitTest {
         val esPropia = mascotaOtro.creadoPorCorreo.isNotBlank() &&
                 mascotaOtro.creadoPorCorreo.equals(correoUsuario, ignoreCase = true)
 
-        assertTrue(com.example.adoptme.AdoptMe.puedeAdoptar(mascotaOtro, esPublicacionPropia = esPropia))
+        assertTrue(com.example.adoptme.components.puedeAdoptar(mascotaOtro, esPublicacionPropia = esPropia))
     }
 
     @Test
@@ -2053,7 +2056,7 @@ class ExampleUnitTest {
             val telefonoLimpio = telefono.trim()
             if (nombreLimpio.isBlank()) return false to "El nombre completo no puede estar vacío."
             if (nombreLimpio.length < 2) return false to "El nombre debe tener al menos 2 caracteres."
-            if (telefonoLimpio.isNotBlank() && !com.example.adoptme.AdoptMe.esTelefonoPeruanoValido(telefonoLimpio)) {
+            if (telefonoLimpio.isNotBlank() && !com.example.adoptme.screens.esTelefonoPeruanoValido(telefonoLimpio)) {
                 return false to "El teléfono debe tener 9 dígitos y empezar con 9."
             }
             return true to null
@@ -2093,7 +2096,7 @@ class ExampleUnitTest {
             rol = "Adoptante"
         )
 
-        val respuestaNeon = com.example.adoptme.data.remote.PerfilUsuarioResponse(
+        val respuestaNeon = com.example.adoptme.api.PerfilUsuarioResponse(
             id = 42,
             nombre = "Nuevo Nombre",
             correo = "usuario@adoptme.pe",
@@ -2336,7 +2339,7 @@ class ExampleUnitTest {
 
     @Test
     fun testDataStore_valoresPredeterminados() {
-        val prefsPorDefecto = com.example.adoptme.data.datastore.PreferenciasCatalogo()
+        val prefsPorDefecto = com.example.adoptme.datastore.PreferenciasCatalogo()
         assertEquals("Todas", prefsPorDefecto.mascotaPreferida)
         assertEquals("Todas", prefsPorDefecto.ubicacionPreferida)
         assertEquals("Más recientes", prefsPorDefecto.ordenPredeterminado)
@@ -2348,18 +2351,18 @@ class ExampleUnitTest {
         val correoConEspaciosYMayusculas = "  Adoptante.Uno@AdoptMe.PE  "
         val correoNormalizado = "adoptante.uno@adoptme.pe"
 
-        val claveMascota1 = com.example.adoptme.data.datastore.ClavesCatalogo.claveMascota(correoConEspaciosYMayusculas).name
-        val claveMascota2 = com.example.adoptme.data.datastore.ClavesCatalogo.claveMascota(correoNormalizado).name
+        val claveMascota1 = com.example.adoptme.datastore.ClavesCatalogo.claveMascota(correoConEspaciosYMayusculas).name
+        val claveMascota2 = com.example.adoptme.datastore.ClavesCatalogo.claveMascota(correoNormalizado).name
         assertEquals(claveMascota1, claveMascota2)
         assertEquals("mascota_preferida_adoptante.uno@adoptme.pe", claveMascota1)
 
-        val claveUbicacion = com.example.adoptme.data.datastore.ClavesCatalogo.claveUbicacion(correoConEspaciosYMayusculas).name
+        val claveUbicacion = com.example.adoptme.datastore.ClavesCatalogo.claveUbicacion(correoConEspaciosYMayusculas).name
         assertEquals("ubicacion_preferida_adoptante.uno@adoptme.pe", claveUbicacion)
 
-        val claveOrden = com.example.adoptme.data.datastore.ClavesCatalogo.claveOrden(correoConEspaciosYMayusculas).name
+        val claveOrden = com.example.adoptme.datastore.ClavesCatalogo.claveOrden(correoConEspaciosYMayusculas).name
         assertEquals("orden_predeterminado_adoptante.uno@adoptme.pe", claveOrden)
 
-        val claveDisponibles = com.example.adoptme.data.datastore.ClavesCatalogo.claveSoloDisponibles(correoConEspaciosYMayusculas).name
+        val claveDisponibles = com.example.adoptme.datastore.ClavesCatalogo.claveSoloDisponibles(correoConEspaciosYMayusculas).name
         assertEquals("solo_disponibles_adoptante.uno@adoptme.pe", claveDisponibles)
     }
 
@@ -2368,20 +2371,20 @@ class ExampleUnitTest {
         val userA = "usuarioA@adoptme.com"
         val userB = "usuarioB@adoptme.com"
 
-        val kMascotaA = com.example.adoptme.data.datastore.ClavesCatalogo.claveMascota(userA).name
-        val kMascotaB = com.example.adoptme.data.datastore.ClavesCatalogo.claveMascota(userB).name
+        val kMascotaA = com.example.adoptme.datastore.ClavesCatalogo.claveMascota(userA).name
+        val kMascotaB = com.example.adoptme.datastore.ClavesCatalogo.claveMascota(userB).name
         assertNotEquals(kMascotaA, kMascotaB)
 
-        val kUbicacionA = com.example.adoptme.data.datastore.ClavesCatalogo.claveUbicacion(userA).name
-        val kUbicacionB = com.example.adoptme.data.datastore.ClavesCatalogo.claveUbicacion(userB).name
+        val kUbicacionA = com.example.adoptme.datastore.ClavesCatalogo.claveUbicacion(userA).name
+        val kUbicacionB = com.example.adoptme.datastore.ClavesCatalogo.claveUbicacion(userB).name
         assertNotEquals(kUbicacionA, kUbicacionB)
 
-        val kOrdenA = com.example.adoptme.data.datastore.ClavesCatalogo.claveOrden(userA).name
-        val kOrdenB = com.example.adoptme.data.datastore.ClavesCatalogo.claveOrden(userB).name
+        val kOrdenA = com.example.adoptme.datastore.ClavesCatalogo.claveOrden(userA).name
+        val kOrdenB = com.example.adoptme.datastore.ClavesCatalogo.claveOrden(userB).name
         assertNotEquals(kOrdenA, kOrdenB)
 
-        val kDisponiblesA = com.example.adoptme.data.datastore.ClavesCatalogo.claveSoloDisponibles(userA).name
-        val kDisponiblesB = com.example.adoptme.data.datastore.ClavesCatalogo.claveSoloDisponibles(userB).name
+        val kDisponiblesA = com.example.adoptme.datastore.ClavesCatalogo.claveSoloDisponibles(userA).name
+        val kDisponiblesB = com.example.adoptme.datastore.ClavesCatalogo.claveSoloDisponibles(userB).name
         assertNotEquals(kDisponiblesA, kDisponiblesB)
     }
 
@@ -2403,7 +2406,7 @@ class ExampleUnitTest {
         val dsMap = mutableMapOf<String, Any>()
 
         // 1. Primera ejecución: debe migrar los datos a DataStore y señalar retiro únicamente de las 4 claves de catálogo
-        val (migrado1, clavesRetiradas1) = com.example.adoptme.data.datastore.ejecutarLogicaMigracionCatalogo(
+        val (migrado1, clavesRetiradas1) = com.example.adoptme.datastore.ejecutarLogicaMigracionCatalogo(
             correo = correo,
             spValores = spMap,
             dataStoreValores = dsMap
@@ -2432,7 +2435,7 @@ class ExampleUnitTest {
         clavesRetiradas1.forEach { spMap.remove(it) }
 
         // 2. Segunda ejecución (idempotencia): DataStore ya tiene valores, no debe re-migrar ni sobrescribir
-        val (migrado2, _) = com.example.adoptme.data.datastore.ejecutarLogicaMigracionCatalogo(
+        val (migrado2, _) = com.example.adoptme.datastore.ejecutarLogicaMigracionCatalogo(
             correo = correo,
             spValores = spMap,
             dataStoreValores = dsMap
@@ -2452,7 +2455,7 @@ class ExampleUnitTest {
             "mascota_preferida_usuario.existente@adoptme.pe" to "Conejos"
         )
 
-        val (migrado, _) = com.example.adoptme.data.datastore.ejecutarLogicaMigracionCatalogo(
+        val (migrado, _) = com.example.adoptme.datastore.ejecutarLogicaMigracionCatalogo(
             correo = correo,
             spValores = spMap,
             dataStoreValores = dsMap

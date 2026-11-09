@@ -5,6 +5,8 @@
 
 # --- Secretos y Configuración Privada ---
 secrets.json
+secrets.properties
+**/secrets.properties
 .env
 .env.*
 *.pfx

@@ -1,8 +1,8 @@
 package com.example.adoptme
 
-import com.example.adoptme.data.remote.SolicitudResponseDto
-import com.example.adoptme.data.remote.toDomain
+import com.example.adoptme.mapper.toDomain
 import com.example.adoptme.model.AdoptionRequest
+import com.example.adoptme.model.SolicitudResponseDto
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
