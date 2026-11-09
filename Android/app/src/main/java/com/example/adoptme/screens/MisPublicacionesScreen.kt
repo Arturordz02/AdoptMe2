@@ -227,35 +227,17 @@ fun MisPublicacionesScreen(
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
                         Column {
-                            // Fotografía o imagen drawable existente
-                            if (mascota.photoBitmap != null) {
-                                Image(
-                                    bitmap = mascota.photoBitmap.asImageBitmap(),
-                                    contentDescription = "Foto de ${mascota.name}",
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(180.dp),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else if (mascota.image != 0) {
-                                Image(
-                                    painter = painterResource(id = mascota.image),
-                                    contentDescription = "Foto de ${mascota.name}",
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(180.dp),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Image(
-                                    painter = painterResource(id = R.drawable.ic_pet_fallback),
-                                    contentDescription = "Foto de ${mascota.name}",
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(180.dp),
-                                    contentScale = ContentScale.Crop
-                                )
-                            }
+                            // Fotografía o imagen con soporte de Coil para URLs remotas (Fase A)
+                            com.example.adoptme.components.ImagenMascotaRemota(
+                                imageUrl = mascota.imageUrl,
+                                photoBitmap = mascota.photoBitmap,
+                                fallbackDrawableRes = if (mascota.image != 0) mascota.image else R.drawable.ic_pet_fallback,
+                                contentDescription = "Foto de ${mascota.name}",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp),
+                                contentScale = ContentScale.Crop
+                            )
 
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Row(

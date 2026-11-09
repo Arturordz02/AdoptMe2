@@ -9,6 +9,17 @@ import com.example.adoptme.mapper.toPet
 import com.example.adoptme.model.MascotaDto
 import com.example.adoptme.model.Pet
 import com.example.adoptme.utils.formatearEdadCanonica
+import com.example.adoptme.utils.ImageProcessor
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import android.util.Log
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.core.app.ActivityCompat
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import android.location.Geocoder
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
@@ -67,8 +78,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 
 import androidx.compose.foundation.verticalScroll
 
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 
 import androidx.compose.material3.Card
@@ -558,76 +571,123 @@ fun PantallaPublicarMascota(
 
 
     var fotoMascota by remember { mutableStateOf<Bitmap?>(null) }
+    var bytesFotoMascota by remember { mutableStateOf<ByteArray?>(null) }
+    var infoTamanoFoto by remember { mutableStateOf<String?>(null) }
+    var procesandoImagen by remember { mutableStateOf(false) }
+
+    var rutaArchivoTemporalCamara by rememberSaveable { mutableStateOf<String?>(null) }
+    var uriTemporalCamaraStr by rememberSaveable { mutableStateOf<String?>(null) }
+
+    var mostrarDialogoPedagogicoGaleria by remember { mutableStateOf(false) }
+    var mostrarDialogoPedagogicoCamara by remember { mutableStateOf(false) }
+    var mostrarDialogoAjustesCamara by remember { mutableStateOf(false) }
 
     var errores by remember { mutableStateOf(ValidacionPublicacion(true)) }
 
     var mensajeGeneralError by remember { mutableStateOf("") }
 
-
-
     // Opciones rápidas de especies permitidas (RN-02)
-
     val especiesDisponibles = listOf("Perro", "Gato", "Conejo")
-
     val generosDisponibles = listOf("Macho", "Hembra")
 
-
+    /*
+     * PHOTO PICKER (SELECCIÓN PRIVADA DE GALERÍA)
+     */
+    val lanzadorGaleria = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        Log.d("AdoptMe", "lanzadorGaleria callback uri=$uri")
+        if (uri != null) {
+            procesandoImagen = true
+            mensajeGeneralError = ""
+            coroutineScope.launch {
+                try {
+                    val resultado = ImageProcessor.procesarImagenUri(contexto, uri)
+                    fotoMascota = resultado.bitmap
+                    bytesFotoMascota = resultado.bytes
+                    infoTamanoFoto = resultado.tamanoLegible
+                    Log.d("AdoptMe", "lanzadorGaleria éxito: ${resultado.tamanoLegible}")
+                } catch (e: Exception) {
+                    Log.e("AdoptMe", "lanzadorGaleria error", e)
+                    mensajeGeneralError = "No se pudo procesar la fotografía seleccionada: ${e.message}"
+                } finally {
+                    procesandoImagen = false
+                }
+            }
+        }
+    }
 
     /*
-
-     * CÁMARA
-
+     * CAPTURA DE FOTOGRAFÍA CON CÁMARA (ALTA CALIDAD VÍA FILEPROVIDER)
      */
-
-    val lanzadorCamara =
-
-        rememberLauncherForActivityResult(
-
-            contract = ActivityResultContracts.TakePicturePreview()
-
-        ) { bitmap ->
-
-            if (bitmap != null) {
-
-                fotoMascota = bitmap
-
-                mensajeGeneralError = ""
-
-            } else {
-
-                mensajeGeneralError = "No se pudo obtener la fotografía."
-
+    val lanzadorCapturaFoto = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { capturaExitosa ->
+        Log.d("AdoptMe", "lanzadorCapturaFoto callback capturaExitosa=$capturaExitosa uriStr=$uriTemporalCamaraStr ruta=$rutaArchivoTemporalCamara")
+        val uriStr = uriTemporalCamaraStr
+        val ruta = rutaArchivoTemporalCamara
+        val uri = if (uriStr != null) Uri.parse(uriStr) else null
+        val archivo = if (ruta != null) java.io.File(ruta) else null
+        if (capturaExitosa && uri != null) {
+            procesandoImagen = true
+            mensajeGeneralError = ""
+            coroutineScope.launch {
+                try {
+                    val resultado = ImageProcessor.procesarImagenUri(contexto, uri, archivoLocal = archivo)
+                    fotoMascota = resultado.bitmap
+                    bytesFotoMascota = resultado.bytes
+                    infoTamanoFoto = resultado.tamanoLegible
+                    Log.d("AdoptMe", "lanzadorCapturaFoto éxito: ${resultado.tamanoLegible}")
+                } catch (e: Exception) {
+                    Log.e("AdoptMe", "lanzadorCapturaFoto error", e)
+                    mensajeGeneralError = "No se pudo procesar la fotografía capturada: ${e.message}"
+                } finally {
+                    procesandoImagen = false
+                    archivo?.delete()
+                    rutaArchivoTemporalCamara = null
+                    uriTemporalCamaraStr = null
+                }
             }
-
+        } else {
+            archivo?.delete()
+            rutaArchivoTemporalCamara = null
+            uriTemporalCamaraStr = null
         }
+    }
 
-
+    fun iniciarCapturaCamara() {
+        try {
+            val (archivo, uri) = ImageProcessor.crearArchivoTemporalCamara(contexto)
+            rutaArchivoTemporalCamara = archivo.absolutePath
+            uriTemporalCamaraStr = uri.toString()
+            Log.d("AdoptMe", "iniciarCapturaCamara lanzando uri=$uri ruta=${archivo.absolutePath}")
+            lanzadorCapturaFoto.launch(uri)
+        } catch (e: Exception) {
+            mensajeGeneralError = "No se pudo preparar el archivo temporal para la cámara: ${e.message}"
+        }
+    }
 
     /*
-
-     * PERMISO DE CÁMARA
-
+     * PERMISO DE CÁMARA (GESTIÓN PEDAGÓGICA Y RECHAZO)
      */
+    val lanzadorPermisoCamara = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { permisoConcedido ->
+        if (permisoConcedido) {
+            iniciarCapturaCamara()
+        } else {
+            val actividad = contexto as? android.app.Activity
+            val deberiaMostrarRationale = actividad?.let {
+                ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.CAMERA)
+            } ?: false
 
-    val lanzadorPermisoCamara =
-
-        rememberLauncherForActivityResult(
-
-            contract = ActivityResultContracts.RequestPermission()
-
-        ) { permisoConcedido ->
-
-            if (permisoConcedido) {
-
-                lanzadorCamara.launch(null)
-
+            if (!deberiaMostrarRationale) {
+                mostrarDialogoAjustesCamara = true
             } else {
-
-                mensajeGeneralError = "Debes permitir el acceso a la cámara para tomar una foto."
-
+                mensajeGeneralError = "Debes conceder acceso a la cámara para tomar fotos directamente. También puedes seleccionar una fotografía de tu galería privada."
             }
-
         }
+    }
 
     /*
      * UBICACIÓN Y GEOLOCALIZACIÓN
@@ -816,138 +876,157 @@ fun PantallaPublicarMascota(
 
 
 
-        // Tarjeta de Fotografía
-
+        // Tarjeta de Fotografía (Fase A: Cloudinary + Photo Picker + Cámara)
         Card(
-
             modifier = Modifier.fillMaxWidth(),
-
             shape = RoundedCornerShape(16.dp),
-
             colors = CardDefaults.cardColors(containerColor = AdoptCardWhite),
-
             border = BorderStroke(1.dp, BorderWarm),
-
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-
         ) {
-
             Column(modifier = Modifier.padding(16.dp)) {
-
                 Text(
-
                     text = "📷 Foto de la mascota",
-
                     style = MaterialTheme.typography.titleMedium,
-
                     fontWeight = FontWeight.Bold,
-
                     color = AdoptTextDark
-
                 )
-
-
 
                 Text(
-
-                    text = "Toma una foto con la cámara o se asignará una ilustración de apoyo.",
-
+                    text = "Toma una foto con la cámara o selecciona una imagen desde tu galería privada.",
                     style = MaterialTheme.typography.bodySmall,
-
                     color = AdoptTextSecondary,
-
                     modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
-
                 )
 
-
+                if (procesandoImagen) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = AdoptTeal,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Optimizando fotografía...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AdoptTealDark
+                        )
+                    }
+                }
 
                 if (fotoMascota != null) {
-
                     Image(
-
                         bitmap = fotoMascota!!.asImageBitmap(),
-
                         contentDescription = "Foto de la mascota",
-
                         modifier = Modifier
-
                             .fillMaxWidth()
-
                             .height(200.dp)
-
                             .clip(RoundedCornerShape(12.dp)),
-
                         contentScale = ContentScale.Crop
-
                     )
+
+                    if (infoTamanoFoto != null) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Tamaño optimizado: $infoTamanoFoto (JPEG máx. 1024×1024)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = AdoptTextSecondary
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                }
-
-
-
-                Button(
-
-                    onClick = {
-
-                        val tienePermiso = ContextCompat.checkSelfPermission(
-
-                            contexto,
-
-                            Manifest.permission.CAMERA
-
-                        ) == PackageManager.PERMISSION_GRANTED
-
-
-
-                        if (tienePermiso) {
-
-                            lanzadorCamara.launch(null)
-
-                        } else {
-
-                            lanzadorPermisoCamara.launch(Manifest.permission.CAMERA)
-
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                val tienePermiso = ContextCompat.checkSelfPermission(
+                                    contexto,
+                                    Manifest.permission.CAMERA
+                                ) == PackageManager.PERMISSION_GRANTED
+                                if (tienePermiso) {
+                                    iniciarCapturaCamara()
+                                } else {
+                                    mostrarDialogoPedagogicoCamara = true
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Cámara", fontSize = 12.sp)
                         }
 
-                    },
+                        OutlinedButton(
+                            onClick = { mostrarDialogoPedagogicoGaleria = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Galería", fontSize = 12.sp)
+                        }
 
-                    modifier = Modifier.fillMaxWidth(),
-
-                    shape = RoundedCornerShape(10.dp),
-
-                    colors = ButtonDefaults.buttonColors(containerColor = AdoptTeal)
-
-                ) {
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-
-                        Icon(
-
-                            painter = painterResource(id = R.drawable.ic_camera),
-
-                            contentDescription = null,
-
-                            modifier = Modifier.padding(end = 8.dp).size(20.dp)
-
-                        )
-
-                        Text(
-
-                            if (fotoMascota == null) "Tomar foto" else "Cambiar foto",
-
-                            fontWeight = FontWeight.Bold
-
-                        )
-
+                        OutlinedButton(
+                            onClick = {
+                                fotoMascota = null
+                                bytesFotoMascota = null
+                                infoTamanoFoto = null
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC62828))
+                        ) {
+                            Text("Quitar", fontSize = 12.sp)
+                        }
                     }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                val tienePermiso = ContextCompat.checkSelfPermission(
+                                    contexto,
+                                    Manifest.permission.CAMERA
+                                ) == PackageManager.PERMISSION_GRANTED
+                                if (tienePermiso) {
+                                    iniciarCapturaCamara()
+                                } else {
+                                    mostrarDialogoPedagogicoCamara = true
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = AdoptTeal)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_camera),
+                                    contentDescription = null,
+                                    modifier = Modifier.padding(end = 6.dp).size(18.dp)
+                                )
+                                Text("Tomar foto", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
+                        }
 
+                        OutlinedButton(
+                            onClick = { mostrarDialogoPedagogicoGaleria = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, AdoptTeal)
+                        ) {
+                            Text("Elegir de galería", color = AdoptTealDark, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                    }
                 }
-
             }
-
         }
 
 
@@ -1575,108 +1654,97 @@ fun PantallaPublicarMascota(
 
 
                 if (resultadoValidacion.esValido) {
-
                     val edadCanonica = formatearEdadCanonica(edad)
-
                     edad = edadCanonica
-
                     publicando = true
-
                     mensajeGeneralError = ""
 
-
-
                     coroutineScope.launch {
-
                         try {
+                            val respuesta = if (bytesFotoMascota != null && bytesFotoMascota!!.isNotEmpty()) {
+                                // Publicación autenticada mediante multipart/form-data con imagen (Fase A)
+                                val reqName = nombre.trim().toRequestBody("text/plain".toMediaTypeOrNull())
+                                val reqSpecies = especie.trim().toRequestBody("text/plain".toMediaTypeOrNull())
+                                val reqBreed = raza.trim().toRequestBody("text/plain".toMediaTypeOrNull())
+                                val reqAge = edadCanonica.toRequestBody("text/plain".toMediaTypeOrNull())
+                                val reqGender = genero.trim().toRequestBody("text/plain".toMediaTypeOrNull())
+                                val reqLocation = ubicacion.trim().toRequestBody("text/plain".toMediaTypeOrNull())
+                                val reqDesc = descripcion.trim().toRequestBody("text/plain".toMediaTypeOrNull())
+                                val reqStatus = "Disponible".toRequestBody("text/plain".toMediaTypeOrNull())
+                                val reqLat = latitudSeleccionada?.toString()?.toRequestBody("text/plain".toMediaTypeOrNull())
+                                val reqLon = longitudSeleccionada?.toString()?.toRequestBody("text/plain".toMediaTypeOrNull())
 
-                            val dto = MascotaDto(
+                                val reqImg = bytesFotoMascota!!.toRequestBody("image/jpeg".toMediaTypeOrNull())
+                                val partImg = MultipartBody.Part.createFormData("Imagen", "mascota_${System.currentTimeMillis()}.jpg", reqImg)
 
-                                id = 0,
-
-                                name = nombre.trim(),
-
-                                species = especie.trim(),
-
-                                breed = raza.trim(),
-
-                                age = edadCanonica,
-
-                                gender = genero.trim(),
-
-                                location = ubicacion.trim(),
-
-                                status = "Disponible",
-
-                                description = descripcion.trim(),
-
-                                imageUrl = null,
-
-                                creadoPorCorreo = correoActual,
-
-                                latitud = latitudSeleccionada,
-
-                                longitud = longitudSeleccionada
-
-                            )
-
-
-
-                            val respuesta = RetrofitClient.mascotasApi.publicarMascota(dto)
-
-
-
-                            if (respuesta.isSuccessful) {
-
-                                val dtoGuardado = respuesta.body()
-
-                                if (dtoGuardado != null && dtoGuardado.id > 0) {
-
-                                    val nuevaMascota = dtoGuardado.toPet().let {
-
-                                        if (fotoMascota != null) it.copy(photoBitmap = fotoMascota) else it
-
-                                    }
-
-                                    publicar(nuevaMascota)
-
-                                } else {
-
-                                    mensajeGeneralError = "El servidor confirmó la operación pero no devolvió datos válidos de la mascota."
-
-                                }
-
-                            } else if (respuesta.code() == 401) {
-
-                                mensajeGeneralError = "Sesión no autorizada o expirada. Por favor vuelve a iniciar sesión."
-
+                                RetrofitClient.mascotasApi.publicarMascotaConImagen(
+                                    name = reqName,
+                                    species = reqSpecies,
+                                    breed = reqBreed,
+                                    age = reqAge,
+                                    gender = reqGender,
+                                    location = reqLocation,
+                                    description = reqDesc,
+                                    status = reqStatus,
+                                    latitud = reqLat,
+                                    longitud = reqLon,
+                                    imagen = partImg
+                                )
                             } else {
-
-                                mensajeGeneralError = "No se pudo registrar la mascota en el servidor. Código: ${respuesta.code()}"
-
+                                // Publicación tradicional JSON sin imagen
+                                val dto = MascotaDto(
+                                    id = 0,
+                                    name = nombre.trim(),
+                                    species = especie.trim(),
+                                    breed = raza.trim(),
+                                    age = edadCanonica,
+                                    gender = genero.trim(),
+                                    location = ubicacion.trim(),
+                                    status = "Disponible",
+                                    description = descripcion.trim(),
+                                    imageUrl = null,
+                                    creadoPorCorreo = correoActual,
+                                    latitud = latitudSeleccionada,
+                                    longitud = longitudSeleccionada
+                                )
+                                RetrofitClient.mascotasApi.publicarMascota(dto)
                             }
 
+                            if (respuesta.isSuccessful) {
+                                val dtoGuardado = respuesta.body()
+                                if (dtoGuardado != null && dtoGuardado.id > 0) {
+                                    val nuevaMascota = dtoGuardado.toPet().let {
+                                        if (fotoMascota != null && it.photoBitmap == null) it.copy(photoBitmap = fotoMascota) else it
+                                    }
+                                    publicar(nuevaMascota)
+                                } else {
+                                    mensajeGeneralError = "El servidor confirmó la operación pero no devolvió datos válidos de la mascota."
+                                }
+                            } else when (respuesta.code()) {
+                                400 -> {
+                                    val errorBody = respuesta.errorBody()?.string() ?: ""
+                                    mensajeGeneralError = if (errorBody.contains("mensaje")) {
+                                        try { org.json.JSONObject(errorBody).optString("mensaje", "Datos o imagen inválidos.") } catch (_: Exception) { "Datos o fotografía inválidos." }
+                                    } else {
+                                        "Datos o fotografía inválidos."
+                                    }
+                                }
+                                401 -> mensajeGeneralError = "Sesión no autorizada o expirada. Por favor vuelve a iniciar sesión."
+                                413 -> mensajeGeneralError = "La imagen supera el tamaño máximo permitido por el servidor (2 MB)."
+                                503 -> mensajeGeneralError = "El servicio de almacenamiento de imágenes en la nube (Cloudinary) no está configurado en el servidor. Puedes publicar sin fotografía."
+                                else -> mensajeGeneralError = "No se pudo registrar la mascota en el servidor. Código: ${respuesta.code()}"
+                            }
                         } catch (e: Exception) {
-
                             mensajeGeneralError = "No se pudo conectar con el servidor. Revisa tu conexión a Internet e inténtalo nuevamente."
-
                         } finally {
-
                             publicando = false
-
                         }
-
                     }
-
                 } else {
-
                     mensajeGeneralError = "Por favor corrige los campos indicados antes de publicar."
-
                 }
-
             },
-
-            enabled = !publicando,
+            enabled = !publicando && !procesandoImagen,
 
             modifier = Modifier.fillMaxWidth(),
 
@@ -1818,4 +1886,101 @@ fun PantallaPublicarMascota(
         )
     }
 
+    if (mostrarDialogoPedagogicoGaleria) {
+        AlertDialog(
+            onDismissRequest = { mostrarDialogoPedagogicoGaleria = false },
+            title = {
+                Text("Seleccionar una fotografía", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text("Podrás elegir una sola imagen mediante el selector privado de Android. AdoptMe solo tendrá acceso a la fotografía que selecciones y no a toda tu galería.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        mostrarDialogoPedagogicoGaleria = false
+                        lanzadorGaleria.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AdoptTeal)
+                ) {
+                    Text("Elegir fotografía")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarDialogoPedagogicoGaleria = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    if (mostrarDialogoPedagogicoCamara) {
+        AlertDialog(
+            onDismissRequest = { mostrarDialogoPedagogicoCamara = false },
+            title = {
+                Text("Permiso para tomar fotografías", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text("AdoptMe necesita acceso a la cámara únicamente cuando decidas fotografiar una mascota. No se capturan imágenes ni video en segundo plano.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        mostrarDialogoPedagogicoCamara = false
+                        val tienePermiso = ContextCompat.checkSelfPermission(
+                            contexto,
+                            Manifest.permission.CAMERA
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (tienePermiso) {
+                            iniciarCapturaCamara()
+                        } else {
+                            lanzadorPermisoCamara.launch(Manifest.permission.CAMERA)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AdoptTeal)
+                ) {
+                    Text("Continuar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarDialogoPedagogicoCamara = false }) {
+                    Text("Ahora no")
+                }
+            }
+        )
+    }
+
+    if (mostrarDialogoAjustesCamara) {
+        AlertDialog(
+            onDismissRequest = { mostrarDialogoAjustesCamara = false },
+            title = {
+                Text("Acceso a la cámara bloqueado", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text("El acceso a la cámara fue bloqueado permanentemente en el sistema. Puedes activarlo manualmente en los Ajustes de la aplicación, o elegir una imagen desde tu galería.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        mostrarDialogoAjustesCamara = false
+                        val intent = Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.parse("package:${contexto.packageName}")
+                        )
+                        contexto.startActivity(intent)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AdoptTeal)
+                ) {
+                    Text("Abrir ajustes")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarDialogoAjustesCamara = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
 }

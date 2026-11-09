@@ -396,26 +396,17 @@ fun MapaAdopcionesScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    // Imagen pequeña
-                                    if (pet.photoBitmap != null) {
-                                        Image(
-                                            bitmap = pet.photoBitmap.asImageBitmap(),
-                                            contentDescription = pet.name,
-                                            modifier = Modifier
-                                                .size(70.dp)
-                                                .clip(RoundedCornerShape(12.dp)),
-                                            contentScale = ContentScale.Crop
-                                        )
-                                    } else {
-                                        Image(
-                                            painter = painterResource(id = pet.image),
-                                            contentDescription = pet.name,
-                                            modifier = Modifier
-                                                .size(70.dp)
-                                                .clip(RoundedCornerShape(12.dp)),
-                                            contentScale = ContentScale.Crop
-                                        )
-                                    }
+                                    // Imagen pequeña con soporte de Coil para URLs remotas (Fase A)
+                                    com.example.adoptme.components.ImagenMascotaRemota(
+                                        imageUrl = pet.imageUrl,
+                                        photoBitmap = pet.photoBitmap,
+                                        fallbackDrawableRes = pet.image,
+                                        contentDescription = pet.name,
+                                        modifier = Modifier
+                                            .size(70.dp)
+                                            .clip(RoundedCornerShape(12.dp)),
+                                        contentScale = ContentScale.Crop
+                                    )
 
                                     Spacer(modifier = Modifier.width(12.dp))
 

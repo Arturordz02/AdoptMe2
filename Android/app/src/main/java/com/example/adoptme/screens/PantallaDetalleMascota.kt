@@ -95,38 +95,14 @@ fun PantallaDetalleMascota(
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
             contentAlignment = Alignment.Center
         ) {
-            if (mascota.photoBitmap != null) {
-                val bitmap = mascota.photoBitmap
-                // Si la imagen es una captura en miniatura (baja resolución), conservar proporción con Fit
-                // y evitar estirarla pixelándola en toda la pantalla
-                val esImagenPequena = bitmap.width < 500 || bitmap.height < 500
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = "Foto de ${mascota.name}",
-                    modifier = if (esImagenPequena) {
-                        Modifier
-                            .fillMaxSize()
-                            .padding(12.dp)
-                    } else {
-                        Modifier.fillMaxSize()
-                    },
-                    contentScale = if (esImagenPequena) ContentScale.Fit else ContentScale.Crop
-                )
-            } else if (mascota.image != 0) {
-                Image(
-                    painter = painterResource(id = mascota.image),
-                    contentDescription = "Foto de ${mascota.name}",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_pet_fallback),
-                    contentDescription = "Foto de ${mascota.name}",
-                    modifier = Modifier.size(100.dp),
-                    contentScale = ContentScale.Fit
-                )
-            }
+            com.example.adoptme.components.ImagenMascotaRemota(
+                imageUrl = mascota.imageUrl,
+                photoBitmap = mascota.photoBitmap,
+                fallbackDrawableRes = if (mascota.image != 0) mascota.image else R.drawable.ic_pet_fallback,
+                contentDescription = "Foto de ${mascota.name}",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
         }
 
         Spacer(

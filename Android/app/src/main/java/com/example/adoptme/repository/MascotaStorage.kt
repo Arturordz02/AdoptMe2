@@ -28,6 +28,12 @@ fun convertirPetAJson(mascota: Pet, photoPath: String = ""): JSONObject {
     objeto.put("creadoPorCorreo", mascota.creadoPorCorreo)
     objeto.put("esRemota", mascota.esRemota)
     objeto.put("photoPath", photoPath)
+    if (mascota.imageUrl != null) {
+        objeto.put("imageUrl", mascota.imageUrl)
+    }
+    if (mascota.imagePublicId != null) {
+        objeto.put("imagePublicId", mascota.imagePublicId)
+    }
     return objeto
 }
 
@@ -49,6 +55,8 @@ fun parsearJsonAPet(objeto: JSONObject, bitmap: Bitmap? = null): Pet {
         description = objeto.getString("description"),
         image = 0,
         photoBitmap = bitmap,
+        imageUrl = if (objeto.has("imageUrl") && !objeto.isNull("imageUrl")) objeto.getString("imageUrl") else null,
+        imagePublicId = if (objeto.has("imagePublicId") && !objeto.isNull("imagePublicId")) objeto.getString("imagePublicId") else null,
         creadoPorCorreo = objeto.optString("creadoPorCorreo", ""),
         esRemota = esRemota
     )

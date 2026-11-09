@@ -34,8 +34,11 @@ namespace AdoptMe.Api.Models
         [MaxLength(2000)]
         public string Description { get; set; } = string.Empty;
 
-        // URL de la fotografía almacenada en la nube.
+        // URL de la fotografía almacenada en la nube (Cloudinary HTTPS).
         public string? ImageUrl { get; set; }
+
+        // Identificador público del recurso en Cloudinary para gestión y eliminación segura (tipo text en Neon).
+        public string? ImagePublicId { get; set; }
 
         [MaxLength(200)]
         public string CreadoPorCorreo { get; set; } = string.Empty;

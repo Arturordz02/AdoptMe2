@@ -1,6 +1,5 @@
 package com.example.adoptme.model
 
-
 data class MascotaDto(
     val id: Int = 0,
     val name: String = "",
@@ -12,6 +11,7 @@ data class MascotaDto(
     val status: String = "Disponible",
     val description: String = "",
     val imageUrl: String? = null,
+    val imagePublicId: String? = null,
     val creadoPorCorreo: String = "",
     val fechaCreacion: String? = null,
     val latitud: Double? = null,

@@ -184,24 +184,28 @@ fun DialogoTerminosYPrivacidad(
 private fun SeccionPrivacidad() {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         ParrafoInformativo(
-            titulo = "1. Finalidad del permiso de ubicación",
-            cuerpo = "AdoptMe solicita acceso a tu ubicación aproximada o precisa (GPS) exclusivamente para calcular la distancia a centros de adopción y mascotas cercanas, así como para posicionar el mapa interactivo."
+            titulo = "1. Uso de fotografías y almacenamiento en la nube",
+            cuerpo = "Las fotografías que captures con la cámara o selecciones desde tu galería privada se emplean exclusivamente para publicar fichas de mascotas. Las imágenes procesadas se almacenan de forma segura en la infraestructura de Cloudinary, y su URL pública HTTPS se asocia al registro de la mascota en nuestra base de datos Neon PostgreSQL para que otros usuarios puedan visualizarla."
         )
         ParrafoInformativo(
-            titulo = "2. No almacenamos tu ubicación en tiempo real",
+            titulo = "2. Acceso granular a galería mediante Photo Picker",
+            cuerpo = "AdoptMe utiliza el Photo Picker oficial de Android. La aplicación no inspecciona toda tu galería ni solicita permisos amplios de almacenamiento; solo recibe acceso temporal a la fotografía específica que tú selecciones de manera explícita."
+        )
+        ParrafoInformativo(
+            titulo = "3. Uso exclusivo y voluntario de la cámara",
+            cuerpo = "El acceso a la cámara se solicita únicamente cuando pulsas 'Tomar foto' dentro del formulario. AdoptMe no captura imágenes ni graba video en segundo plano bajo ninguna circunstancia."
+        )
+        ParrafoInformativo(
+            titulo = "4. Finalidad del permiso de ubicación",
+            cuerpo = "AdoptMe solicita acceso a tu ubicación aproximada o precisa (GPS) exclusivamente para calcular la distancia a centros de adopción y mascotas cercanas, así como para posicionar el mapa interactivo. Ni la ubicación ni las fotografías se emplean para rastreo continuo."
+        )
+        ParrafoInformativo(
+            titulo = "5. No almacenamos tu ubicación en tiempo real",
             cuerpo = "Tu ubicación actual es procesada localmente en tu dispositivo. AdoptMe NO rastrea, no almacena en segundo plano ni envía tus coordenadas personales a ningún servidor sin tu consentimiento expreso."
         )
         ParrafoInformativo(
-            titulo = "3. Coordenadas de mascotas publicadas",
-            cuerpo = "Al publicar una mascota, puedes seleccionar un punto de referencia en el mapa. Estas coordenadas corresponden al lugar sugerido para el encuentro o albergue, y NO necesariamente al domicilio privado del usuario."
-        )
-        ParrafoInformativo(
-            titulo = "4. Opción de selección manual sin permisos",
-            cuerpo = "Si no deseas otorgar permisos de ubicación a la aplicación, puedes pulsar manualmente en el mapa interactivo para indicar la zona de la mascota sin necesidad de encender tu GPS."
-        )
-        ParrafoInformativo(
-            titulo = "5. No compartición con terceros",
-            cuerpo = "Las coordenadas de mascotas solo se transmiten a la API REST de AdoptMe para permitir su visualización pública en el mapa de adopciones y catálogo. No se comparten con anunciantes ni terceros ajenos al servicio."
+            titulo = "6. Eliminación de datos y fotografías",
+            cuerpo = "El usuario creador o un Administrador pueden eliminar su publicación en cualquier momento desde la aplicación. Dicha acción remueve el registro en la base de datos y elimina el recurso multimedia alojado en Cloudinary."
         )
     }
 }
@@ -210,12 +214,12 @@ private fun SeccionPrivacidad() {
 private fun SeccionTerminos() {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         ParrafoInformativo(
-            titulo = "1. Compromiso de Adopción Responsable",
-            cuerpo = "AdoptMe es una plataforma sin fines de lucro destinada a conectar rescatistas, albergues y adoptantes. Queda estrictamente prohibida la venta, explotación o comercialización de animales a través de esta aplicación."
+            titulo = "1. Compromiso de Adopción Responsable (Ley N.º 30407)",
+            cuerpo = "AdoptMe es una plataforma sin fines de lucro destinada a conectar rescatistas, albergues y adoptantes en el marco de la Ley de Protección y Bienestar Animal (Ley N.º 30407). Queda estrictamente prohibida la venta, comercialización o explotación de animales."
         )
         ParrafoInformativo(
-            titulo = "2. Veracidad de la Información",
-            cuerpo = "El usuario que publica una mascota se compromete a brindar datos verídicos sobre su estado de salud, temperamento, edad y ubicación aproximada."
+            titulo = "2. Veracidad de la Información y Fotografías",
+            cuerpo = "El usuario que publica una mascota se compromete a brindar datos verídicos sobre su estado de salud, temperamento, edad, ubicación aproximada y fotografías actuales y reales del animal."
         )
         ParrafoInformativo(
             titulo = "3. Evaluación de Solicitudes",

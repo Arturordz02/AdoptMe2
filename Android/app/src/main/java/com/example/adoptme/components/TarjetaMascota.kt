@@ -80,80 +80,22 @@ fun TarjetaMascota(
                 // FOTO
                 // =========================
 
-                if (mascota.photoBitmap != null) {
-
-                    Image(
-                        bitmap =
-                            mascota
-                                .photoBitmap
-                                .asImageBitmap(),
-
-                        contentDescription =
-                            "Foto de ${mascota.name}",
-
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp)
-                            .clip(
-                                RoundedCornerShape(
-                                    topStart = 16.dp,
-                                    topEnd = 16.dp
-                                )
-                            ),
-
-                        contentScale =
-                            ContentScale.Crop
-                    )
-
-                } else if (mascota.image != 0) {
-
-                    Image(
-                        painter =
-                            painterResource(
-                                id = mascota.image
-                            ),
-
-                        contentDescription =
-                            "Foto de ${mascota.name}",
-
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp)
-                            .clip(
-                                RoundedCornerShape(
-                                    topStart = 16.dp,
-                                    topEnd = 16.dp
-                                )
-                            ),
-
-                        contentScale =
-                            ContentScale.Crop
-                    )
-                } else {
-
-                    Image(
-                        painter =
-                            painterResource(
-                                id = R.drawable.ic_pet_fallback
-                            ),
-
-                        contentDescription =
-                            "Foto de ${mascota.name}",
-
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp)
-                            .clip(
-                                RoundedCornerShape(
-                                    topStart = 16.dp,
-                                    topEnd = 16.dp
-                                )
-                            ),
-
-                        contentScale =
-                            ContentScale.Crop
-                    )
-                }
+                ImagenMascotaRemota(
+                    imageUrl = mascota.imageUrl,
+                    photoBitmap = mascota.photoBitmap,
+                    fallbackDrawableRes = if (mascota.image != 0) mascota.image else R.drawable.ic_pet_fallback,
+                    contentDescription = "Foto de ${mascota.name}",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .clip(
+                            RoundedCornerShape(
+                                topStart = 16.dp,
+                                topEnd = 16.dp
+                            )
+                        ),
+                    contentScale = ContentScale.Crop
+                )
 
                 // =========================
                 // FAVORITOS
