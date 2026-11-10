@@ -15,17 +15,28 @@ namespace AdoptMe.Api.Controllers
     {
         private readonly AdoptMeDbContext _context;
         private readonly IImageStorageService _imageStorageService;
+        private readonly ICentroAuthorizationService _authService;
         private readonly ILogger<MascotasController> _logger;
 
         [ActivatorUtilitiesConstructor]
         public MascotasController(
             AdoptMeDbContext context,
             IImageStorageService imageStorageService,
+            ICentroAuthorizationService authService,
             ILogger<MascotasController> logger)
         {
             _context = context;
             _imageStorageService = imageStorageService;
+            _authService = authService;
             _logger = logger;
+        }
+
+        public MascotasController(
+            AdoptMeDbContext context,
+            IImageStorageService imageStorageService,
+            ILogger<MascotasController> logger)
+            : this(context, imageStorageService, new CentroAuthorizationService(context), logger)
+        {
         }
 
         /// <summary>
@@ -38,6 +49,7 @@ namespace AdoptMe.Api.Controllers
                     Microsoft.Extensions.Options.Options.Create(new Configuration.CloudinarySettings()),
                     Microsoft.Extensions.Logging.Abstractions.NullLogger<CloudinaryImageStorageService>.Instance
                 ),
+                new CentroAuthorizationService(context),
                 Microsoft.Extensions.Logging.Abstractions.NullLogger<MascotasController>.Instance)
         {
         }
@@ -70,12 +82,9 @@ namespace AdoptMe.Api.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Mascota>>> ObtenerMascotas()
         {
-            var mascotas = await _context.Mascotas
-              .AsNoTracking()
-              .OrderByDescending(m => m.FechaCreacion)
-              .ToListAsync();
-
-            return Ok(mascotas);
+            return await _context.Mascotas
+                .AsNoTracking()
+                .ToListAsync();
         }
 
         // GET: api/Mascotas/1
@@ -83,7 +92,9 @@ namespace AdoptMe.Api.Controllers
         [HttpGet("{id:int}")]
         public async Task<ActionResult<Mascota>> ObtenerPorId(int id)
         {
-            var mascota = await _context.Mascotas.FindAsync(id);
+            var mascota = await _context.Mascotas
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.Id == id);
 
             if (mascota == null)
             {
@@ -93,7 +104,7 @@ namespace AdoptMe.Api.Controllers
                 });
             }
 
-            return Ok(mascota);
+            return mascota;
         }
 
         // POST: api/Mascotas
@@ -105,6 +116,8 @@ namespace AdoptMe.Api.Controllers
         {
             var correoAutenticado = User.FindFirst(ClaimTypes.Email)?.Value
                 ?? User.FindFirst("email")?.Value;
+            var rolAutenticado = User.FindFirst(ClaimTypes.Role)?.Value
+                ?? User.FindFirst("role")?.Value;
 
             if (string.IsNullOrWhiteSpace(correoAutenticado))
             {
@@ -128,6 +141,38 @@ namespace AdoptMe.Api.Controllers
                 return BadRequest(new { mensaje = errorCoordenadas });
             }
 
+            // GESTIÓN Y VALIDACIÓN DE CENTROID POR ROL
+            int? centroIdAsignado = null;
+            if (string.Equals(rolAutenticado, "Centro", StringComparison.OrdinalIgnoreCase))
+            {
+                var authOperacion = await _authService.ValidarOperacionCentroAsync(User);
+                if (!authOperacion.EsValido)
+                {
+                    return StatusCode(authOperacion.CodigoError ?? 403, new
+                    {
+                        mensaje = authOperacion.MensajeError ?? "Tu centro no está autorizado para publicar mascotas."
+                    });
+                }
+                centroIdAsignado = authOperacion.Centro?.Id;
+            }
+            else if (string.Equals(rolAutenticado, "Admin", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(rolAutenticado, "Administrador", StringComparison.OrdinalIgnoreCase))
+            {
+                if (mascota.CentroId.HasValue)
+                {
+                    bool existeCentro = await _context.Centros.AnyAsync(c => c.Id == mascota.CentroId.Value);
+                    if (existeCentro)
+                    {
+                        centroIdAsignado = mascota.CentroId.Value;
+                    }
+                }
+            }
+            else
+            {
+                // Adoptante: sanitización obligatoria hacia null
+                centroIdAsignado = null;
+            }
+
             mascota.Id = 0;
             mascota.Name = mascota.Name.Trim();
             mascota.Species = mascota.Species.Trim();
@@ -140,6 +185,7 @@ namespace AdoptMe.Api.Controllers
             mascota.FechaCreacion = DateTime.UtcNow;
             mascota.CreadoPorCorreo = correoAutenticado.Trim().ToLowerInvariant();
             mascota.ImagePublicId = null; // Sanitización obligatoria: prevenir inyección arbitraria de identificadores desde JSON
+            mascota.CentroId = centroIdAsignado;
 
             _context.Mascotas.Add(mascota);
             await _context.SaveChangesAsync();
@@ -162,6 +208,8 @@ namespace AdoptMe.Api.Controllers
         {
             var correoAutenticado = User.FindFirst(ClaimTypes.Email)?.Value
                 ?? User.FindFirst("email")?.Value;
+            var rolAutenticado = User.FindFirst(ClaimTypes.Role)?.Value
+                ?? User.FindFirst("role")?.Value;
 
             if (string.IsNullOrWhiteSpace(correoAutenticado))
             {
@@ -183,6 +231,38 @@ namespace AdoptMe.Api.Controllers
             if (errorCoordenadas != null)
             {
                 return BadRequest(new { mensaje = errorCoordenadas });
+            }
+
+            // GESTIÓN Y VALIDACIÓN PREVIA DE CENTROID POR ROL (antes de subir imágenes)
+            int? centroIdAsignado = null;
+            if (string.Equals(rolAutenticado, "Centro", StringComparison.OrdinalIgnoreCase))
+            {
+                var authOperacion = await _authService.ValidarOperacionCentroAsync(User, cancellationToken);
+                if (!authOperacion.EsValido)
+                {
+                    return StatusCode(authOperacion.CodigoError ?? 403, new
+                    {
+                        mensaje = authOperacion.MensajeError ?? "Tu centro no está autorizado para publicar mascotas."
+                    });
+                }
+                centroIdAsignado = authOperacion.Centro?.Id;
+            }
+            else if (string.Equals(rolAutenticado, "Admin", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(rolAutenticado, "Administrador", StringComparison.OrdinalIgnoreCase))
+            {
+                if (dto.CentroId.HasValue)
+                {
+                    bool existeCentro = await _context.Centros.AnyAsync(c => c.Id == dto.CentroId.Value, cancellationToken);
+                    if (existeCentro)
+                    {
+                        centroIdAsignado = dto.CentroId.Value;
+                    }
+                }
+            }
+            else
+            {
+                // Adoptante: sanitización obligatoria hacia null
+                centroIdAsignado = null;
             }
 
             ImageUploadResult? uploadResult = null;
@@ -231,10 +311,11 @@ namespace AdoptMe.Api.Controllers
                 Description = dto.Description?.Trim() ?? string.Empty,
                 ImageUrl = uploadResult?.SecureUrl,
                 ImagePublicId = uploadResult?.PublicId,
-                FechaCreacion = DateTime.UtcNow,
                 CreadoPorCorreo = correoAutenticado.Trim().ToLowerInvariant(),
                 Latitud = dto.Latitud,
-                Longitud = dto.Longitud
+                Longitud = dto.Longitud,
+                CentroId = centroIdAsignado,
+                FechaCreacion = DateTime.UtcNow
             };
 
             try
@@ -246,8 +327,8 @@ namespace AdoptMe.Api.Controllers
             {
                 _logger.LogError(ex, "Error al persistir la mascota en la base de datos.");
 
-                // ROLLBACK ATÓMICO: Si se subió imagen a Cloudinary pero falló Neon,
-                // eliminamos de inmediato la imagen para evitar recursos huérfanos.
+                // ROLLBACK COMPENSATORIO: Si se subió imagen a Cloudinary pero falló la persistencia transaccional en Neon,
+                // realizamos limpieza remota best-effort en Cloudinary para evitar recursos huérfanos.
                 if (uploadResult != null && !string.IsNullOrWhiteSpace(uploadResult.PublicId))
                 {
                     _logger.LogInformation("Revirtiendo imagen huérfana en Cloudinary: {PublicId}", uploadResult.PublicId);
@@ -315,6 +396,10 @@ namespace AdoptMe.Api.Controllers
                 rolAutenticado,
                 "Admin",
                 StringComparison.OrdinalIgnoreCase
+            ) || string.Equals(
+                rolAutenticado,
+                "Administrador",
+                StringComparison.OrdinalIgnoreCase
             );
 
             if (!esPropietario && !esAdmin)
@@ -359,24 +444,39 @@ namespace AdoptMe.Api.Controllers
             }
             if (datos.ImageUrl != null)
             {
-                mascota.ImageUrl = datos.ImageUrl.Trim();
+                mascota.ImageUrl = datos.ImageUrl;
             }
 
-            // Actualización y validación de coordenadas geográficas (Entrega #4)
-            var errorCoordenadas = ValidarCoordenadas(datos.Latitud, datos.Longitud);
-            if (errorCoordenadas != null)
+            // Actualización de coordenadas geográficas
+            if (datos.Latitud.HasValue || datos.Longitud.HasValue)
             {
-                return BadRequest(new { mensaje = errorCoordenadas });
-            }
+                var errorCoordenadas = ValidarCoordenadas(datos.Latitud, datos.Longitud);
+                if (errorCoordenadas != null)
+                {
+                    return BadRequest(new { mensaje = errorCoordenadas });
+                }
 
-            if (datos.Latitud.HasValue && datos.Longitud.HasValue)
-            {
                 mascota.Latitud = datos.Latitud;
                 mascota.Longitud = datos.Longitud;
             }
 
-            // REGLA ESTRICTA: CreadoPorCorreo y FechaCreacion NUNCA se modifican desde el DTO.
-            await _context.SaveChangesAsync();
+            // Preservar CentroId original (no editable arbitrariamente)
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!MascotaExists(id))
+                {
+                    return NotFound(new
+                    {
+                        mensaje = "Mascota no encontrada durante la actualización."
+                    });
+                }
+                throw;
+            }
 
             return NoContent();
         }
@@ -404,7 +504,7 @@ namespace AdoptMe.Api.Controllers
                 });
             }
 
-            var mascota = await _context.Mascotas.FindAsync(id);
+            var mascota = await _context.Mascotas.FindAsync(new object[] { id }, cancellationToken);
 
             if (mascota == null)
             {
@@ -424,23 +524,21 @@ namespace AdoptMe.Api.Controllers
                 rolAutenticado,
                 "Admin",
                 StringComparison.OrdinalIgnoreCase
+            ) || string.Equals(
+                rolAutenticado,
+                "Administrador",
+                StringComparison.OrdinalIgnoreCase
             );
 
             if (!esPropietario && !esAdmin)
             {
-                return StatusCode(StatusCodes.Status403Forbidden, new
+                return StatusCode(403, new
                 {
                     mensaje = "No tienes autorización para modificar la imagen de esta mascota. Solo el propietario o un Administrador pueden hacerlo."
                 });
             }
 
-            IFormFile? archivo = imagen;
-            if (archivo == null && Request.HasFormContentType && Request.Form.Files.Count > 0)
-            {
-                archivo = Request.Form.Files[0];
-            }
-
-            if (archivo == null || archivo.Length == 0)
+            if (imagen == null || imagen.Length == 0)
             {
                 return BadRequest(new
                 {
@@ -448,7 +546,7 @@ namespace AdoptMe.Api.Controllers
                 });
             }
 
-            var validacion = await FileSecurityValidator.ValidarImagenAsync(archivo, cancellationToken);
+            var validacion = await FileSecurityValidator.ValidarImagenAsync(imagen, cancellationToken);
             if (!validacion.EsValido)
             {
                 return BadRequest(new
@@ -465,7 +563,7 @@ namespace AdoptMe.Api.Controllers
                 });
             }
 
-            using var stream = archivo.OpenReadStream();
+            using var stream = imagen.OpenReadStream();
             var uploadResult = await _imageStorageService.SubirImagenAsync(stream, validacion.NombreGenerado!, cancellationToken);
 
             if (!uploadResult.Exitoso)
@@ -489,8 +587,8 @@ namespace AdoptMe.Api.Controllers
             {
                 _logger.LogError(ex, "Error al persistir la nueva imagen de la mascota {Id} en la base de datos.", id);
 
-                // ROLLBACK ATÓMICO: Si se subió la nueva imagen a Cloudinary pero falló Neon,
-                // eliminamos de inmediato la nueva imagen para evitar recursos huérfanos.
+                // ROLLBACK COMPENSATORIO: Si se subió la nueva imagen a Cloudinary pero falló la persistencia transaccional en Neon,
+                // realizamos limpieza remota best-effort en Cloudinary para evitar recursos huérfanos.
                 if (!string.IsNullOrWhiteSpace(uploadResult.PublicId))
                 {
                     _logger.LogInformation("Revirtiendo nueva imagen huérfana en Cloudinary: {PublicId}", uploadResult.PublicId);
@@ -506,13 +604,13 @@ namespace AdoptMe.Api.Controllers
 
                 return StatusCode(StatusCodes.Status500InternalServerError, new
                 {
-                    mensaje = "Error al actualizar la imagen de la mascota en la base de datos. La nueva imagen fue revertida para evitar archivos huérfanos."
+                    mensaje = "Error al persistir la imagen en la base de datos. Cualquier imagen procesada fue revertida."
                 });
             }
 
-            // LIMPIEZA DE IMAGEN ANTERIOR: Una vez confirmada la persistencia en DB,
-            // eliminamos la imagen antigua en Cloudinary si existía.
-            if (!string.IsNullOrWhiteSpace(viejoPublicId) && !string.Equals(viejoPublicId, uploadResult.PublicId, StringComparison.OrdinalIgnoreCase))
+            // LIMPIEZA REMOTA BEST-EFFORT: Si la nueva imagen se guardó con éxito en Neon y existía una imagen anterior,
+            // eliminamos el activo anterior de Cloudinary.
+            if (!string.IsNullOrWhiteSpace(viejoPublicId) && viejoPublicId != uploadResult.PublicId)
             {
                 try
                 {
@@ -567,6 +665,10 @@ namespace AdoptMe.Api.Controllers
                 rolAutenticado,
                 "Admin",
                 StringComparison.OrdinalIgnoreCase
+            ) || string.Equals(
+                rolAutenticado,
+                "Administrador",
+                StringComparison.OrdinalIgnoreCase
             );
 
             if (!esPropietario && !esAdmin)
@@ -600,6 +702,11 @@ namespace AdoptMe.Api.Controllers
             }
 
             return NoContent();
+        }
+
+        private bool MascotaExists(int id)
+        {
+            return _context.Mascotas.Any(e => e.Id == id);
         }
     }
 }

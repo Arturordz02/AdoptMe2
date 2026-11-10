@@ -69,6 +69,7 @@ builder.Services.Configure<CloudinarySettings>(options =>
 });
 
 builder.Services.AddScoped<IImageStorageService, CloudinaryImageStorageService>();
+builder.Services.AddScoped<ICentroAuthorizationService, CentroAuthorizationService>();
 
 builder.Services.AddDbContext<AdoptMeDbContext>(options =>
     options.UseNpgsql(

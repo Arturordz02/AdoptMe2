@@ -27,6 +27,11 @@ namespace AdoptMe.Api.Tests
 
         public Task<ImageUploadResult> SubirImagenAsync(Stream stream, string nombreArchivo, CancellationToken cancellationToken = default)
         {
+            return SubirImagenAsync(stream, nombreArchivo, null, cancellationToken);
+        }
+
+        public Task<ImageUploadResult> SubirImagenAsync(Stream stream, string nombreArchivo, string? subcarpeta, CancellationToken cancellationToken = default)
+        {
             if (!IsConfigured)
             {
                 return Task.FromResult(ImageUploadResult.Fallo("El servicio de almacenamiento de imágenes en la nube (Cloudinary) no está configurado en el servidor."));
@@ -37,7 +42,8 @@ namespace AdoptMe.Api.Tests
                 return Task.FromResult(ImageUploadResult.Fallo(ErrorSubida ?? "Error simulado en Cloudinary."));
             }
 
-            string publicId = $"adoptme/mascotas/{Guid.NewGuid():N}";
+            string carpeta = string.IsNullOrWhiteSpace(subcarpeta) ? "adoptme/mascotas" : subcarpeta.Trim();
+            string publicId = $"{carpeta}/{Guid.NewGuid():N}";
             string secureUrl = $"https://res.cloudinary.com/adoptme-demo/image/upload/v123456/{publicId}.jpg";
             ImagenesSubidas.Add(publicId);
 
@@ -382,7 +388,7 @@ namespace AdoptMe.Api.Tests
             Assert.Empty(fakeStorage.ImagenesSubidas);
         }
 
-        // 11. Fallo Neon elimina la imagen recién subida (Rollback atómico)
+        // 11. Fallo Neon elimina la imagen recién subida (Rollback compensatorio con limpieza remota)
         [Fact]
         public async Task Test11_FalloBaseDeDatos_RevierteImagenEnCloudinary()
         {

@@ -1,5 +1,6 @@
-
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace AdoptMe.Api.Models
 {
@@ -48,7 +49,13 @@ namespace AdoptMe.Api.Models
 
         public double? Longitud { get; set; }
 
+        // Vinculación opcional con un Centro de Adopción (Entrega #6)
+        public int? CentroId { get; set; }
+
+        [ForeignKey(nameof(CentroId))]
+        [JsonIgnore]
+        public virtual Centro? Centro { get; set; }
+
         public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
     }
 }
-

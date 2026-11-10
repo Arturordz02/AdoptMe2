@@ -93,7 +93,7 @@ private val CENTRO_LIMA = LatLng(-12.046374, -77.030583)
 @Composable
 fun MapaAdopcionesScreen(
     mascotas: List<Pet>,
-    centros: List<CentroAdopcion> = CentrosDemostrativos,
+    centros: List<CentroAdopcion> = emptyList(),
     volver: () -> Unit = {},
     onVerDetalleMascota: (Pet) -> Unit = {},
     onContactarCentro: (idCentro: Int, nombreCentro: String, correoCentro: String, ubicacion: String) -> Unit = { _, _, _, _ -> },

@@ -1,5 +1,7 @@
 package com.example.adoptme.api
 
+import com.example.adoptme.model.RegistroCentroRequest
+import com.example.adoptme.model.RegistroCentroResponse
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -33,6 +35,10 @@ data class LoginUsuarioResponse(
     val correo: String,
     val telefono: String = "",
     val rol: String,
+    val centroId: Int? = null,
+    val estadoCentro: String? = null,
+    val centroActivo: Boolean = false,
+    val esDemostrativo: Boolean = false,
     val token: String,
     val expiracion: String
 )
@@ -56,6 +62,11 @@ interface UsuariosApi {
     suspend fun registrarUsuario(
         @Body datos: RegistroUsuarioRequest
     ): Response<RegistroUsuarioResponse>
+
+    @POST("api/Usuarios/registro-centro")
+    suspend fun registrarCentro(
+        @Body datos: RegistroCentroRequest
+    ): Response<RegistroCentroResponse>
 
     @POST("api/Usuarios/login")
     suspend fun iniciarSesion(

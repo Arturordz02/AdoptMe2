@@ -50,9 +50,9 @@ import com.example.adoptme.model.MensajeChat
 
 @Composable
 fun PantallaChat(
-    idCentro: Int = 1,
-    nombreCentro: String = "Albergue Huellitas del Norte",
-    correoCentro: String = "centro@adoptme.com",
+    idCentro: Int = 0,
+    nombreCentro: String = "Centro de Adopción",
+    correoCentro: String = "contacto@adoptme.com",
     correoUsuarioActual: String = "usuario@adoptme.com",
     rolUsuario: String = "Adoptante",
     correoAdoptante: String = "usuario@adoptme.com",
@@ -159,7 +159,7 @@ fun PantallaChat(
                         }
 
                         Text(
-                            text = if (rolUsuario == "Centro") "$nombreCentro · Mensajería demostrativa" else "Chat demostrativo local",
+                            text = if (rolUsuario == "Centro") "$nombreCentro · Mensajería local demostrativa" else "Mensajería local demostrativa",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1
