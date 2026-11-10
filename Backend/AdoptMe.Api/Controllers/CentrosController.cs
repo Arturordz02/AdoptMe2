@@ -150,6 +150,9 @@ namespace AdoptMe.Api.Controllers
                 LogoUrl = c.LogoUrl,
                 Estado = c.Estado,
                 MotivoRechazo = c.MotivoRechazo,
+                MotivoSuspension = c.MotivoSuspension,
+                FechaSuspension = c.FechaSuspension,
+                FechaReactivacion = c.FechaReactivacion,
                 FechaSolicitud = c.FechaSolicitud,
                 FechaRevision = c.FechaRevision,
                 EsDemostrativo = c.EsDemostrativo,
@@ -190,6 +193,16 @@ namespace AdoptMe.Api.Controllers
             }
 
             var centro = auth.Centro;
+
+            if (!centro.Activo)
+            {
+                return StatusCode(403, new
+                {
+                    mensaje = !string.IsNullOrWhiteSpace(centro.MotivoSuspension)
+                        ? $"El centro se encuentra suspendido por administración (Motivo: {centro.MotivoSuspension}). No se permiten modificaciones durante la suspensión."
+                        : "El centro se encuentra temporalmente inactivo. No se permiten modificaciones en este estado."
+                });
+            }
 
             // EVALUACIÓN DE SENSIBILIDAD DE CAMBIOS:
             // 1. Cambio de nombre institucional
@@ -256,6 +269,9 @@ namespace AdoptMe.Api.Controllers
                 LogoUrl = centro.LogoUrl,
                 Estado = centro.Estado,
                 MotivoRechazo = vuelveAPendiente ? "La solicitud requiere nueva revisión administrativa debido a cambios sustanciales en nombre o geolocalización." : centro.MotivoRechazo,
+                MotivoSuspension = centro.MotivoSuspension,
+                FechaSuspension = centro.FechaSuspension,
+                FechaReactivacion = centro.FechaReactivacion,
                 FechaSolicitud = centro.FechaSolicitud,
                 FechaRevision = centro.FechaRevision,
                 EsDemostrativo = centro.EsDemostrativo,
@@ -350,6 +366,16 @@ namespace AdoptMe.Api.Controllers
             }
 
             var centro = auth.Centro;
+
+            if (!centro.Activo)
+            {
+                return StatusCode(403, new
+                {
+                    mensaje = !string.IsNullOrWhiteSpace(centro.MotivoSuspension)
+                        ? "El centro se encuentra suspendido por administración. No es posible cambiar el logotipo en este estado."
+                        : "El centro se encuentra temporalmente inactivo. No se permite cambiar el logotipo."
+                });
+            }
 
             if (!_imageStorageService.IsConfigured)
             {

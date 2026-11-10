@@ -19,6 +19,9 @@ namespace AdoptMe.Api.Models
         public string? LogoUrl { get; set; }
         public string Estado { get; set; } = "Pendiente";
         public string? MotivoRechazo { get; set; }
+        public string? MotivoSuspension { get; set; }
+        public DateTime? FechaSuspension { get; set; }
+        public DateTime? FechaReactivacion { get; set; }
         public DateTime FechaSolicitud { get; set; }
         public DateTime? FechaRevision { get; set; }
         public bool EsDemostrativo { get; set; }

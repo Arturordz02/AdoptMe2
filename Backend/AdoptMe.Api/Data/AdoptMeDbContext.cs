@@ -68,6 +68,12 @@ namespace AdoptMe.Api.Data
                       .HasForeignKey(c => c.RevisadoPorUsuarioId)
                       .OnDelete(DeleteBehavior.SetNull);
 
+                // Relación con Administrador que suspende: SetNull si el admin fuera eliminado
+                entity.HasOne(c => c.SuspendidoPorAdmin)
+                      .WithMany()
+                      .HasForeignKey(c => c.SuspendidoPorAdminId)
+                      .OnDelete(DeleteBehavior.SetNull);
+
                 // Índice único parcial para UsuarioId no nulo
                 entity.HasIndex(c => c.UsuarioId)
                       .IsUnique()

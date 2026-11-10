@@ -790,7 +790,7 @@ namespace AdoptMe.Api.Tests
         }
 
         [Fact]
-        public async Task Test18f_Admin_AsignarPropietario_TransferenciaValida_ActualizaPropietario()
+        public async Task Test18f_Admin_AsignarPropietario_NoSobrescribeResponsableExistente_RetornaConflict()
         {
             using var context = CreateInMemoryContext("admin_transferencia_db");
             var usuarioAntiguo = new Usuario { Id = 54, Nombre = "Centro Anterior", Correo = "ant@adoptme.pe", Rol = "Centro" };
@@ -807,10 +807,10 @@ namespace AdoptMe.Api.Tests
 
             var dto = new AsignarPropietarioCentroDto { UsuarioId = 55 };
             var result = await controller.AsignarPropietario(40, dto);
-            var okResult = Assert.IsType<OkObjectResult>(result);
+            var conflictResult = Assert.IsType<ConflictObjectResult>(result);
 
             var cBd = await context.Centros.FindAsync(40);
-            Assert.Equal(55, cBd!.UsuarioId);
+            Assert.Equal(54, cBd!.UsuarioId);
         }
 
         [Fact]

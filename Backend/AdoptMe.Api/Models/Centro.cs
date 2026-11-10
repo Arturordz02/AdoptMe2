@@ -82,10 +82,33 @@ namespace AdoptMe.Api.Models
         public string Estado { get; set; } = "Pendiente";
 
         /// <summary>
-        /// Justificación obligatoria ingresada por el Administrador en caso de rechazo.
+        /// Justificación obligatoria ingresada por el Administrador en caso de rechazo inicial.
         /// </summary>
         [MaxLength(500)]
         public string? MotivoRechazo { get; set; }
+
+        /// <summary>
+        /// Justificación obligatoria ingresada por el Administrador en caso de suspensión operativa.
+        /// </summary>
+        public string? MotivoSuspension { get; set; }
+
+        /// <summary>
+        /// Fecha y hora UTC en que el centro fue suspendido por un administrador.
+        /// </summary>
+        public DateTime? FechaSuspension { get; set; }
+
+        /// <summary>
+        /// Identificador del Administrador que ordenó la suspensión operativa.
+        /// </summary>
+        public int? SuspendidoPorAdminId { get; set; }
+
+        [ForeignKey(nameof(SuspendidoPorAdminId))]
+        public virtual Usuario? SuspendidoPorAdmin { get; set; }
+
+        /// <summary>
+        /// Fecha y hora UTC de la última reactivación administrativa.
+        /// </summary>
+        public DateTime? FechaReactivacion { get; set; }
 
         public DateTime FechaSolicitud { get; set; } = DateTime.UtcNow;
 

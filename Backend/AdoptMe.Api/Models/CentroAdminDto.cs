@@ -11,6 +11,8 @@ namespace AdoptMe.Api.Models
         public string? TelefonoResponsable { get; set; }
         public int? RevisadoPorUsuarioId { get; set; }
         public string? RevisadoPorNombre { get; set; }
+        public int? SuspendidoPorAdminId { get; set; }
+        public string? SuspendidoPorAdminNombre { get; set; }
         public DateTime FechaCreacion { get; set; }
         public int TotalMascotasPublicadas { get; set; }
     }
