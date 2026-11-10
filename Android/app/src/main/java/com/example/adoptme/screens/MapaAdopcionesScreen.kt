@@ -1,8 +1,12 @@
 package com.example.adoptme.screens
 
 import android.Manifest
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import com.example.adoptme.components.DialogoExplicacionUbicacion
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -71,6 +75,7 @@ import com.example.adoptme.ui.theme.AdoptTextDark
 import com.example.adoptme.ui.theme.AdoptTextSecondary
 import com.example.adoptme.utils.HaversineUtil
 import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -90,6 +95,46 @@ sealed class ElementoMapa {
 // Punto por defecto: Lima Metropolitana (-12.046374, -77.030583)
 private val CENTRO_LIMA = LatLng(-12.046374, -77.030583)
 
+/**
+ * Convierte un drawable de recursos a BitmapDescriptor escalado de forma segura y eficiente.
+ */
+private fun obtenerBitmapDescriptor(context: Context, resId: Int, sizeDp: Int = 42): BitmapDescriptor? {
+    return try {
+        val drawable = ContextCompat.getDrawable(context, resId) ?: return null
+        val density = context.resources.displayMetrics.density
+        val sizePx = (sizeDp * density).toInt().coerceAtLeast(1)
+        val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        drawable.setBounds(0, 0, canvas.width, canvas.height)
+        drawable.draw(canvas)
+        BitmapDescriptorFactory.fromBitmap(bitmap)
+    } catch (e: Exception) {
+        null
+    }
+}
+
+/**
+ * Resuelve el icono según la especie de la mascota con fallback seguro.
+ */
+fun resolverIconoMascota(
+    species: String,
+    iconoPerro: BitmapDescriptor?,
+    iconoGato: BitmapDescriptor?,
+    iconoConejo: BitmapDescriptor?
+): BitmapDescriptor {
+    val esp = species.trim().lowercase()
+    return when {
+        esp.contains("perr") || esp.contains("can") || esp.contains("dog") ->
+            iconoPerro ?: BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)
+        esp.contains("gat") || esp.contains("felin") || esp.contains("cat") ->
+            iconoGato ?: BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_CYAN)
+        esp.contains("conej") || esp.contains("rabbit") ->
+            iconoConejo ?: BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
+        else ->
+            BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_VIOLET)
+    }
+}
+
 @Composable
 fun MapaAdopcionesScreen(
     mascotas: List<Pet>,
@@ -101,6 +146,12 @@ fun MapaAdopcionesScreen(
 ) {
     val contexto = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+
+    // Cache de descriptores de mapa para evitar recreación de bitmaps en cada recomposición
+    val iconoPerro = remember(contexto) { obtenerBitmapDescriptor(contexto, R.drawable.perro_icono, 42) }
+    val iconoGato = remember(contexto) { obtenerBitmapDescriptor(contexto, R.drawable.gato_icono, 42) }
+    val iconoConejo = remember(contexto) { obtenerBitmapDescriptor(contexto, R.drawable.conejo_icono, 42) }
+    val iconoCentro = remember(contexto) { obtenerBitmapDescriptor(contexto, R.drawable.ic_marcador_centro, 44) }
 
     var filtroTipo by remember { mutableStateOf("todos") } // "todos", "mascotas", "centros"
     var elementoSeleccionado by remember { mutableStateOf<ElementoMapa?>(null) }
@@ -176,21 +227,16 @@ fun MapaAdopcionesScreen(
                 elementoSeleccionado = null
             }
         ) {
-            // Marcadores de Mascotas
+            // Marcadores de Mascotas con iconos por especie
             if (filtroTipo == "todos" || filtroTipo == "mascotas") {
                 mascotasConUbicacion.forEach { pet ->
-                    val hue = when (pet.species.trim().lowercase()) {
-                        "perro" -> BitmapDescriptorFactory.HUE_AZURE
-                        "gato" -> BitmapDescriptorFactory.HUE_CYAN
-                        "conejo" -> BitmapDescriptorFactory.HUE_GREEN
-                        else -> BitmapDescriptorFactory.HUE_VIOLET
-                    }
+                    val icono = resolverIconoMascota(pet.species, iconoPerro, iconoGato, iconoConejo)
 
                     Marker(
                         state = MarkerState(position = LatLng(pet.latitud!!, pet.longitud!!)),
                         title = pet.name,
                         snippet = "${pet.species} · ${pet.status}",
-                        icon = BitmapDescriptorFactory.defaultMarker(hue),
+                        icon = icono,
                         onClick = {
                             elementoSeleccionado = ElementoMapa.Mascota(pet)
                             true
@@ -199,14 +245,15 @@ fun MapaAdopcionesScreen(
                 }
             }
 
-            // Marcadores de Centros
+            // Marcadores de Centros con icono institucional
             if (filtroTipo == "todos" || filtroTipo == "centros") {
+                val markerCentro = iconoCentro ?: BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)
                 centrosConUbicacion.forEach { centro ->
                     Marker(
                         state = MarkerState(position = LatLng(centro.latitud!!, centro.longitud!!)),
                         title = centro.nombre,
                         snippet = "🏡 Centro de adopción",
-                        icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED),
+                        icon = markerCentro,
                         onClick = {
                             elementoSeleccionado = ElementoMapa.Centro(centro)
                             true
@@ -234,13 +281,12 @@ fun MapaAdopcionesScreen(
                 ) {
                     IconButton(
                         onClick = volver,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_arrow_back),
+                        Image(
+                            painter = painterResource(id = R.drawable.flecha_izquierda),
                             contentDescription = "Volver",
-                            tint = AdoptTealDark,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
 
