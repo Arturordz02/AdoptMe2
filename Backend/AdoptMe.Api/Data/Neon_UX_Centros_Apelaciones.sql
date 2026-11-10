@@ -1,12 +1,7 @@
 -- =============================================================================
 -- AdoptMe - Migración SQL Idempotente: Gestión de Apelaciones de Centros Suspendidos
 -- Archivo: Neon_UX_Centros_Apelaciones.sql
--- Fase: C7 - Corrección Integral de Suspensiones y Apelaciones
--- 
--- ADVERTENCIA OBLIGATORIA:
--- NO EJECUTAR DIRECTAMENTE CONTRA NEON EN ESTA FASE.
--- Este archivo es exclusivamente para especificación técnica, versionado
--- documental y preparación para despliegue controlado de base de datos.
+-- Fase: C9 - Migración Remota y Despliegue de Apelaciones
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS "CentrosApelaciones" (
@@ -35,3 +30,8 @@ CREATE INDEX IF NOT EXISTS "IX_CentrosApelaciones_Estado"
 
 CREATE INDEX IF NOT EXISTS "IX_CentrosApelaciones_FechaCreacion" 
     ON "CentrosApelaciones" ("FechaCreacion" DESC);
+
+-- Índice único condicional: impide más de una apelación en estado 'Pendiente' por centro
+CREATE UNIQUE INDEX IF NOT EXISTS "UX_CentrosApelaciones_Centro_Pendiente" 
+    ON "CentrosApelaciones" ("CentroId") 
+    WHERE "Estado" = 'Pendiente';

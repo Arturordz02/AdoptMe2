@@ -115,6 +115,11 @@ namespace AdoptMe.Api.Data
 
                 entity.HasIndex(a => a.CentroId);
                 entity.HasIndex(a => a.Estado);
+
+                entity.HasIndex(a => a.CentroId)
+                      .HasFilter("\"Estado\" = 'Pendiente'")
+                      .IsUnique()
+                      .HasDatabaseName("UX_CentrosApelaciones_Centro_Pendiente");
             });
         }
     }
