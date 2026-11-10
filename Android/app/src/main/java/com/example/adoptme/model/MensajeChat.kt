@@ -31,3 +31,16 @@ data class ConversacionCentro(
     val fecha: String,
     val mensajesNoLeidos: Int = 0
 )
+
+/**
+ * Modelo para resumir una conversación activa en la bandeja del Adoptante.
+ * Incluye contador reactivo de mensajes recibidos del Centro que no han sido leídos.
+ */
+data class ConversacionAdoptante(
+    val idCentro: Int,
+    val nombreCentro: String,
+    val correoCentro: String = "",
+    val ultimoTexto: String = "",
+    val fecha: String = "",
+    val mensajesNoLeidos: Int = 0
+)

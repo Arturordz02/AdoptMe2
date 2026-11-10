@@ -3,6 +3,7 @@ package com.example.adoptme.repository
 import android.content.Context
 import android.content.SharedPreferences
 import com.example.adoptme.model.AdoptionRequest
+import com.example.adoptme.model.ConversacionAdoptante
 import com.example.adoptme.model.ConversacionCentro
 import com.example.adoptme.model.MensajeChat
 import com.example.adoptme.model.NotificationItem
@@ -397,6 +398,9 @@ class AppStorage(
             objeto.put("reason", solicitud.reason)
             objeto.put("status", solicitud.status)
             objeto.put("id", solicitud.id)
+            if (!solicitud.observacion.isNullOrBlank()) {
+                objeto.put("observacion", solicitud.observacion)
+            }
             arreglo.put(objeto)
         }
         return arreglo
@@ -423,7 +427,8 @@ class AppStorage(
                         previousExperience = objeto.optString("previousExperience", ""),
                         reason = objeto.optString("reason", ""),
                         status = objeto.optString("status", "Pendiente"),
-                        id = objeto.optInt("id", 0)
+                        id = objeto.optInt("id", 0),
+                        observacion = if (objeto.has("observacion") && !objeto.isNull("observacion")) objeto.optString("observacion", "").takeIf { it.isNotBlank() } else null
                     )
                 )
             }
@@ -803,6 +808,16 @@ class AppStorage(
         preferencias.edit()
             .putString(clave, arreglo.toString())
             .apply()
+
+        // Sincronizar de forma espejo para la bandeja del adoptante
+        registrarConversacionAdoptante(
+            correoAdoptante = correoAdoptante,
+            idCentro = idCentro,
+            correoCentro = correoCentro,
+            nombreCentro = nombreCentro,
+            ultimoTexto = ultimoTexto,
+            fecha = fecha
+        )
     }
 
     /**
@@ -829,6 +844,84 @@ class AppStorage(
                         correoAdoptante = correoAdoptante,
                         correoCentro = obj.optString("correoCentro", correoCentro),
                         nombreCentro = obj.optString("nombreCentro", ""),
+                        ultimoTexto = obj.optString("ultimoTexto", ""),
+                        fecha = obj.optString("fecha", ""),
+                        mensajesNoLeidos = noLeidos
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        return resultado
+    }
+
+    fun claveConversacionesAdoptante(correoAdoptante: String): String =
+        "conversaciones_adoptante_${obtenerClaveUsuario(correoAdoptante)}"
+
+    fun registrarConversacionAdoptante(
+        correoAdoptante: String,
+        idCentro: Int,
+        correoCentro: String,
+        nombreCentro: String,
+        ultimoTexto: String,
+        fecha: String
+    ) {
+        val clave = claveConversacionesAdoptante(correoAdoptante)
+        val actuales = cargarConversacionesAdoptante(correoAdoptante).toMutableList()
+        val adoptanteNorm = normalizarCorreoUsuario(correoAdoptante)
+
+        actuales.removeAll { it.idCentro == idCentro }
+        val noLeidos = contarMensajesNoLeidosConversacion(adoptanteNorm, idCentro, "Adoptante")
+        actuales.add(
+            0,
+            ConversacionAdoptante(
+                idCentro = idCentro,
+                nombreCentro = nombreCentro,
+                correoCentro = normalizarCorreoUsuario(correoCentro),
+                ultimoTexto = ultimoTexto,
+                fecha = fecha,
+                mensajesNoLeidos = noLeidos
+            )
+        )
+
+        val arreglo = JSONArray()
+        actuales.forEach { c ->
+            val obj = JSONObject().apply {
+                put("idCentro", c.idCentro)
+                put("nombreCentro", c.nombreCentro)
+                put("correoCentro", c.correoCentro)
+                put("ultimoTexto", c.ultimoTexto)
+                put("fecha", c.fecha)
+            }
+            arreglo.put(obj)
+        }
+
+        preferencias.edit()
+            .putString(clave, arreglo.toString())
+            .apply()
+    }
+
+    fun cargarConversacionesAdoptante(
+        correoAdoptante: String
+    ): List<ConversacionAdoptante> {
+        val clave = claveConversacionesAdoptante(correoAdoptante)
+        val contenido = preferencias.getString(clave, null) ?: return emptyList()
+        val resultado = mutableListOf<ConversacionAdoptante>()
+
+        try {
+            val arreglo = JSONArray(contenido)
+            for (i in 0 until arreglo.length()) {
+                val obj = arreglo.getJSONObject(i)
+                val idCentro = obj.optInt("idCentro", 1)
+                val noLeidos = contarMensajesNoLeidosConversacion(correoAdoptante, idCentro, "Adoptante")
+
+                resultado.add(
+                    ConversacionAdoptante(
+                        idCentro = idCentro,
+                        nombreCentro = obj.optString("nombreCentro", "Centro de Adopción"),
+                        correoCentro = obj.optString("correoCentro", ""),
                         ultimoTexto = obj.optString("ultimoTexto", ""),
                         fecha = obj.optString("fecha", ""),
                         mensajesNoLeidos = noLeidos
