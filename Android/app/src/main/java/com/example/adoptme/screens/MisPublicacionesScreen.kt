@@ -1,5 +1,6 @@
 package com.example.adoptme.screens
 
+import com.example.adoptme.components.DialogoSelectorMapa
 import com.example.adoptme.utils.formatearEdadCanonica
 
 import androidx.compose.foundation.BorderStroke
@@ -54,6 +55,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.adoptme.R
@@ -76,6 +78,7 @@ fun MisPublicacionesScreen(
     eliminar: (Pet) -> Unit,
     editar: ((Pet, (Boolean) -> Unit) -> Unit)? = null,
     correoActual: String = "",
+    esModoSoloLectura: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val publicacionesPropias = remember(publicaciones, correoActual) {
@@ -109,7 +112,7 @@ fun MisPublicacionesScreen(
             .navigationBarsPadding()
             .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
-        // Botón Volver
+        // Botón Volver con recurso de navegación unificado
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Start,
@@ -117,11 +120,10 @@ fun MisPublicacionesScreen(
         ) {
             TextButton(onClick = volver) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_arrow_back),
+                    Image(
+                        painter = painterResource(id = R.drawable.flecha_izquierda),
                         contentDescription = "Volver",
-                        modifier = Modifier.padding(end = 4.dp).size(18.dp),
-                        tint = AdoptTeal
+                        modifier = Modifier.padding(end = 6.dp).size(20.dp)
                     )
                     Text(
                         text = "Volver",
@@ -147,8 +149,30 @@ fun MisPublicacionesScreen(
             text = "Mascotas que has puesto en adopción responsable.",
             style = MaterialTheme.typography.bodyMedium,
             color = AdoptTextSecondary,
-            modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
+            modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
         )
+
+        // Banner informativo si el centro está en modo solo lectura por suspensión
+        if (esModoSoloLectura) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("⚠️", fontSize = 22.sp)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Funciones de publicación temporalmente deshabilitadas por suspensión. La información se muestra en modo solo lectura.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+        }
 
         // Banner informativo tras eliminar
         if (mensajeExito != null) {
@@ -306,54 +330,70 @@ fun MisPublicacionesScreen(
                                     Spacer(modifier = Modifier.height(6.dp))
                                 }
 
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    OutlinedButton(
-                                        onClick = { mascotaAEditar = mascota },
-                                        modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(10.dp),
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            contentColor = AdoptTeal
-                                        ),
-                                        border = BorderStroke(1.dp, AdoptTeal)
+                                if (!esModoSoloLectura) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                painter = painterResource(id = R.drawable.ic_edit),
-                                                contentDescription = null,
-                                                modifier = Modifier.padding(end = 6.dp).size(18.dp),
-                                                tint = AdoptTeal
-                                            )
-                                            Text(
-                                                text = "Editar",
-                                                fontWeight = FontWeight.Bold
-                                            )
+                                        OutlinedButton(
+                                            onClick = { mascotaAEditar = mascota },
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = ButtonDefaults.outlinedButtonColors(
+                                                contentColor = AdoptTeal
+                                            ),
+                                            border = BorderStroke(1.dp, AdoptTeal)
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    painter = painterResource(id = R.drawable.ic_edit),
+                                                    contentDescription = null,
+                                                    modifier = Modifier.padding(end = 6.dp).size(18.dp),
+                                                    tint = AdoptTeal
+                                                )
+                                                Text(
+                                                    text = "Editar",
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+
+                                        OutlinedButton(
+                                            onClick = { mascotaAEliminar = mascota },
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = ButtonDefaults.outlinedButtonColors(
+                                                contentColor = MaterialTheme.colorScheme.error
+                                            ),
+                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    painter = painterResource(id = R.drawable.ic_delete),
+                                                    contentDescription = null,
+                                                    modifier = Modifier.padding(end = 6.dp).size(18.dp),
+                                                    tint = MaterialTheme.colorScheme.error
+                                                )
+                                                Text(
+                                                    text = "Eliminar",
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
                                         }
                                     }
-
-                                    OutlinedButton(
-                                        onClick = { mascotaAEliminar = mascota },
-                                        modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(10.dp),
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            contentColor = MaterialTheme.colorScheme.error
-                                        ),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                                } else {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                painter = painterResource(id = R.drawable.ic_delete),
-                                                contentDescription = null,
-                                                modifier = Modifier.padding(end = 6.dp).size(18.dp),
-                                                tint = MaterialTheme.colorScheme.error
-                                            )
-                                            Text(
-                                                text = "Eliminar",
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
+                                        Text(
+                                            text = "🔒 Edición y retiro no disponibles por suspensión administrativa.",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(8.dp),
+                                            textAlign = TextAlign.Center
+                                        )
                                     }
                                 }
                             }
@@ -452,9 +492,38 @@ fun DialogoEditarMascota(
     var estado by remember { mutableStateOf(mascota.status) }
     var ubicacion by remember { mutableStateOf(mascota.location) }
     var descripcion by remember { mutableStateOf(mascota.description) }
+    var latitud by remember { mutableStateOf(mascota.latitud) }
+    var longitud by remember { mutableStateOf(mascota.longitud) }
+    var mostrarSelectorMapa by remember { mutableStateOf(false) }
 
     var guardando by remember { mutableStateOf(false) }
     var errorMensaje by remember { mutableStateOf<String?>(null) }
+
+    if (mostrarSelectorMapa) {
+        DialogoSelectorMapa(
+            latitudInicial = latitud,
+            longitudInicial = longitud,
+            alConfirmarDetallado = { lat, lon, res ->
+                latitud = lat
+                longitud = lon
+                if (res.direccionCompleta.isNotBlank() && !res.direccionCompleta.startsWith("Coordenadas:")) {
+                    ubicacion = res.direccionCompleta
+                } else if (res.distrito.isNotBlank()) {
+                    ubicacion = res.distrito
+                }
+                mostrarSelectorMapa = false
+            },
+            alConfirmar = { lat, lon, dist ->
+                latitud = lat
+                longitud = lon
+                if (!dist.isNullOrBlank() && ubicacion.isBlank()) {
+                    ubicacion = dist
+                }
+                mostrarSelectorMapa = false
+            },
+            alDescartar = { mostrarSelectorMapa = false }
+        )
+    }
 
     AlertDialog(
         modifier = Modifier.widthIn(max = 520.dp),
@@ -683,6 +752,33 @@ fun DialogoEditarMascota(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (latitud != null && longitud != null) {
+                        Text(
+                            text = String.format(java.util.Locale.US, "📍 Lat: %.4f, Lon: %.4f", latitud, longitud),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.width(1.dp))
+                    }
+                    TextButton(
+                        onClick = { mostrarSelectorMapa = true },
+                        enabled = !guardando
+                    ) {
+                        Text(
+                            text = if (latitud != null) "Cambiar en mapa" else "📍 Fijar en mapa",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // 8. Descripción
@@ -736,7 +832,9 @@ fun DialogoEditarMascota(
                         gender = genero.trim(),
                         status = estado.trim(),
                         location = ubicacion.trim(),
-                        description = descripcion.trim()
+                        description = descripcion.trim(),
+                        latitud = latitud,
+                        longitud = longitud
                     )
 
                     onGuardar(mascotaActualizada) { exito ->

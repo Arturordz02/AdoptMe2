@@ -14,6 +14,7 @@ import com.example.adoptme.model.interpretarEdadMascota
 import com.example.adoptme.model.validarEdadMascota
 import com.example.adoptme.utils.formatearEdadCanonica
 import com.example.adoptme.utils.ImageProcessor
+import com.example.adoptme.utils.ReverseGeocodingHelper
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -1580,21 +1581,11 @@ fun PantallaPublicarMascota(
                                             if (loc != null) {
                                                 latitudSeleccionada = loc.latitude
                                                 longitudSeleccionada = loc.longitude
-                                                withContext(Dispatchers.IO) {
-                                                    try {
-                                                        if (Geocoder.isPresent()) {
-                                                            val geocoder = Geocoder(contexto, Locale.getDefault())
-                                                            val lista = geocoder.getFromLocation(loc.latitude, loc.longitude, 1)
-                                                            if (!lista.isNullOrEmpty()) {
-                                                                val subLoc = lista[0].subLocality
-                                                                val ciudad = lista[0].locality
-                                                                val dist = listOfNotNull(subLoc, ciudad).filter { it.isNotBlank() }.distinct().joinToString(", ")
-                                                                if (dist.isNotBlank()) {
-                                                                    ubicacion = dist
-                                                                }
-                                                            }
-                                                        }
-                                                    } catch (_: Exception) {}
+                                                val resGeo = ReverseGeocodingHelper.obtenerDireccion(contexto, loc.latitude, loc.longitude)
+                                                if (resGeo.direccionCompleta.isNotBlank() && !resGeo.direccionCompleta.startsWith("Coordenadas:")) {
+                                                    ubicacion = resGeo.direccionCompleta
+                                                } else if (resGeo.distrito.isNotBlank()) {
+                                                    ubicacion = resGeo.distrito
                                                 }
                                             } else {
                                                 mensajeGeneralError = "No se pudo obtener la posición GPS. Prueba con 'Ver en mapa'."
@@ -1991,6 +1982,16 @@ fun PantallaPublicarMascota(
         DialogoSelectorMapa(
             latitudInicial = latitudSeleccionada,
             longitudInicial = longitudSeleccionada,
+            alConfirmarDetallado = { lat, lon, res ->
+                latitudSeleccionada = lat
+                longitudSeleccionada = lon
+                if (res.direccionCompleta.isNotBlank() && !res.direccionCompleta.startsWith("Coordenadas:")) {
+                    ubicacion = res.direccionCompleta
+                } else if (res.distrito.isNotBlank()) {
+                    ubicacion = res.distrito
+                }
+                mostrarSelectorMapa = false
+            },
             alConfirmar = { lat, lon, distritoSugerido ->
                 latitudSeleccionada = lat
                 longitudSeleccionada = lon

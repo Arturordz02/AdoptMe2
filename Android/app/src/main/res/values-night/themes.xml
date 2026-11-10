@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.AdoptMe" parent="android:Theme.Material.NoActionBar">
+        <!-- Fondo nativo de arranque para Android < 12 en modo oscuro (API 24-30) -->
+        <item name="android:windowBackground">@drawable/adoptme_splash_background_dark</item>
+
+        <!-- Splash screen nativo para Android 12+ en modo oscuro (API 31+) -->
+        <item name="android:windowSplashScreenBackground">#191615</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/adoptme_splash_icon</item>
+    </style>
+</resources>

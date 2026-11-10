@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <style name="Theme.AdoptMe" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Fondo nativo de arranque para Android < 12 (API 24-30) -->
+        <item name="android:windowBackground">@drawable/adoptme_splash_background</item>
 
-    <style name="Theme.AdoptMe" parent="android:Theme.Material.Light.NoActionBar" />
+        <!-- Splash screen nativo para Android 12+ (API 31+) -->
+        <item name="android:windowSplashScreenBackground">#FAF7F2</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/adoptme_splash_icon</item>
+    </style>
 </resources>

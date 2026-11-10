@@ -3,10 +3,14 @@ package com.example.adoptme.api
 import com.example.adoptme.model.ActualizarMiCentroRequest
 import com.example.adoptme.model.AsignarPropietarioCentroRequest
 import com.example.adoptme.model.CentroAdminDto
+import com.example.adoptme.model.CentroApelacionDto
 import com.example.adoptme.model.CentroPropietarioDto
 import com.example.adoptme.model.CentroPublicoDto
+import com.example.adoptme.model.CrearApelacionRequest
 import com.example.adoptme.model.OperacionCentroResponse
 import com.example.adoptme.model.RechazarCentroRequest
+import com.example.adoptme.model.ResolverApelacionRequest
+import com.example.adoptme.model.SuspenderCentroRequest
 import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.Body
@@ -56,6 +60,17 @@ interface CentrosApi {
         @Part imagen: MultipartBody.Part
     ): Response<OperacionCentroResponse>
 
+    @POST("api/centros/mi-centro/apelaciones")
+    suspend fun crearApelacion(
+        @Body request: CrearApelacionRequest
+    ): Response<CentroApelacionDto>
+
+    @GET("api/centros/mi-centro/apelacion-pendiente")
+    suspend fun obtenerApelacionPendiente(): Response<CentroApelacionDto>
+
+    @GET("api/centros/mi-centro/apelaciones")
+    suspend fun obtenerHistorialApelaciones(): Response<List<CentroApelacionDto>>
+
     // =========================================================
     // ENDPOINTS DE ADMINISTRACIÓN DE CENTROS
     // =========================================================
@@ -94,9 +109,46 @@ interface CentrosApi {
         @Path("id") id: Int
     ): Response<OperacionCentroResponse>
 
+    @PUT("api/admin/centros/{id}/suspender")
+    suspend fun suspenderCentro(
+        @Path("id") id: Int,
+        @Body request: SuspenderCentroRequest
+    ): Response<OperacionCentroResponse>
+
+    @PUT("api/admin/centros/{id}/reactivar")
+    suspend fun reactivarCentro(
+        @Path("id") id: Int
+    ): Response<OperacionCentroResponse>
+
+    @PUT("api/admin/centros/{id}/vincular-responsable")
+    suspend fun vincularResponsable(
+        @Path("id") id: Int,
+        @Body request: AsignarPropietarioCentroRequest
+    ): Response<OperacionCentroResponse>
+
     @PUT("api/admin/centros/{id}/asignar-propietario")
     suspend fun asignarPropietario(
         @Path("id") id: Int,
         @Body request: AsignarPropietarioCentroRequest
+    ): Response<OperacionCentroResponse>
+
+    // =========================================================
+    // ENDPOINTS DE APELACIONES (ADMIN)
+    // =========================================================
+
+    @GET("api/admin/centros/apelaciones")
+    suspend fun listarApelacionesAdmin(
+        @Query("estado") estado: String? = null
+    ): Response<List<CentroApelacionDto>>
+
+    @PUT("api/admin/centros/apelaciones/{id}/aprobar")
+    suspend fun aprobarApelacion(
+        @Path("id") id: Int
+    ): Response<OperacionCentroResponse>
+
+    @PUT("api/admin/centros/apelaciones/{id}/rechazar")
+    suspend fun rechazarApelacion(
+        @Path("id") id: Int,
+        @Body request: ResolverApelacionRequest
     ): Response<OperacionCentroResponse>
 }

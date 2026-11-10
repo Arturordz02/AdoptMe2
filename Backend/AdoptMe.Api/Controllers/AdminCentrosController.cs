@@ -44,6 +44,7 @@ namespace AdoptMe.Api.Controllers
             var query = _context.Centros
                 .Include(c => c.Usuario)
                 .Include(c => c.RevisadoPorUsuario)
+                .Include(c => c.SuspendidoPorAdmin)
                 .Include(c => c.Mascotas)
                 .AsNoTracking();
 
@@ -90,6 +91,11 @@ namespace AdoptMe.Api.Controllers
                     LogoUrl = c.LogoUrl,
                     Estado = c.Estado,
                     MotivoRechazo = c.MotivoRechazo,
+                    MotivoSuspension = c.MotivoSuspension,
+                    FechaSuspension = c.FechaSuspension,
+                    FechaReactivacion = c.FechaReactivacion,
+                    SuspendidoPorAdminId = c.SuspendidoPorAdminId,
+                    SuspendidoPorAdminNombre = c.SuspendidoPorAdmin != null ? c.SuspendidoPorAdmin.Nombre : null,
                     FechaSolicitud = c.FechaSolicitud,
                     FechaRevision = c.FechaRevision,
                     EsDemostrativo = c.EsDemostrativo,
@@ -116,6 +122,7 @@ namespace AdoptMe.Api.Controllers
             var c = await _context.Centros
                 .Include(c => c.Usuario)
                 .Include(c => c.RevisadoPorUsuario)
+                .Include(c => c.SuspendidoPorAdmin)
                 .Include(c => c.Mascotas)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(c => c.Id == id);
@@ -141,6 +148,11 @@ namespace AdoptMe.Api.Controllers
                 LogoUrl = c.LogoUrl,
                 Estado = c.Estado,
                 MotivoRechazo = c.MotivoRechazo,
+                MotivoSuspension = c.MotivoSuspension,
+                FechaSuspension = c.FechaSuspension,
+                FechaReactivacion = c.FechaReactivacion,
+                SuspendidoPorAdminId = c.SuspendidoPorAdminId,
+                SuspendidoPorAdminNombre = c.SuspendidoPorAdmin != null ? c.SuspendidoPorAdmin.Nombre : null,
                 FechaSolicitud = c.FechaSolicitud,
                 FechaRevision = c.FechaRevision,
                 EsDemostrativo = c.EsDemostrativo,
@@ -157,7 +169,7 @@ namespace AdoptMe.Api.Controllers
         }
 
         // PUT: api/admin/centros/5/aprobar
-        // Aprobar la solicitud de un centro para que opere en la plataforma y aparezca públicamente
+        // Aprobar la solicitud inicial de un centro para que opere en la plataforma y aparezca públicamente
         [HttpPut("{id:int}/aprobar")]
         public async Task<IActionResult> AprobarCentro(int id)
         {
@@ -167,9 +179,39 @@ namespace AdoptMe.Api.Controllers
                 return NotFound(new { mensaje = $"Centro con ID {id} no encontrado." });
             }
 
+            if (string.Equals(centro.Estado, "Aprobado", StringComparison.OrdinalIgnoreCase))
+            {
+                if (centro.Activo)
+                {
+                    return Ok(new
+                    {
+                        mensaje = "El centro ya se encuentra aprobado y activo en la plataforma.",
+                        id = centro.Id,
+                        estado = centro.Estado,
+                        activo = centro.Activo
+                    });
+                }
+                else
+                {
+                    return Conflict(new
+                    {
+                        mensaje = "El centro ya está formalmente aprobado pero se encuentra suspendido/inactivo. Utiliza la acción de reactivación."
+                    });
+                }
+            }
+
+            if (string.Equals(centro.Estado, "Rechazado", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new
+                {
+                    mensaje = "No se puede aprobar directamente una solicitud rechazada. El responsable del centro debe reenviar su solicitud para nueva revisión."
+                });
+            }
+
             int? adminId = ObtenerAdminId();
 
             centro.Estado = "Aprobado";
+            centro.Activo = true;
             centro.MotivoRechazo = null;
             centro.FechaRevision = DateTime.UtcNow;
             centro.RevisadoPorUsuarioId = adminId;
@@ -184,37 +226,56 @@ namespace AdoptMe.Api.Controllers
                 mensaje = "Centro de adopción aprobado exitosamente.",
                 id = centro.Id,
                 estado = centro.Estado,
+                activo = centro.Activo,
                 fechaRevision = centro.FechaRevision
             });
         }
 
         // PUT: api/admin/centros/5/rechazar
-        // Rechazar la solicitud de un centro con justificación obligatoria
+        // Rechazar la solicitud inicial de un centro con justificación obligatoria
         [HttpPut("{id:int}/rechazar")]
         public async Task<IActionResult> RechazarCentro(int id, [FromBody] RechazarCentroDto dto)
         {
-            if (!ModelState.IsValid || string.IsNullOrWhiteSpace(dto.Motivo))
-            {
-                return BadRequest(new { mensaje = "El motivo de rechazo es obligatorio y debe ser explicativo." });
-            }
-
             var centro = await _context.Centros.FirstOrDefaultAsync(c => c.Id == id);
             if (centro == null)
             {
                 return NotFound(new { mensaje = $"Centro con ID {id} no encontrado." });
             }
 
+            // Regla fundamental de la máquina de estados: Rechazo solo aplica durante la evaluación inicial
+            if (string.Equals(centro.Estado, "Aprobado", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new
+                {
+                    mensaje = "El rechazo solo se aplica durante la evaluación inicial. Para retirar temporalmente un centro aprobado utiliza la suspensión."
+                });
+            }
+
+            if (!string.Equals(centro.Estado, "Pendiente", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new
+                {
+                    mensaje = $"Solo se pueden rechazar solicitudes en estado 'Pendiente' de revisión. Estado actual: '{centro.Estado}'."
+                });
+            }
+
+            string motivoLimpio = dto.Motivo?.Trim() ?? string.Empty;
+            if (motivoLimpio.Length < 5)
+            {
+                return BadRequest(new { mensaje = "El motivo de rechazo es obligatorio y debe contener al menos 5 caracteres explicativos." });
+            }
+
             int? adminId = ObtenerAdminId();
 
             centro.Estado = "Rechazado";
-            centro.MotivoRechazo = dto.Motivo.Trim();
+            centro.MotivoRechazo = motivoLimpio;
             centro.FechaRevision = DateTime.UtcNow;
             centro.RevisadoPorUsuarioId = adminId;
             centro.FechaActualizacion = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("Centro ID {Id} ('{Nombre}') rechazado por administrador ID {AdminId}. Motivo: '{Motivo}'.",
+            _logger.LogInformation("Centro ID {Id} ('{Nombre}') rechazado en evaluación inicial por administrador ID {AdminId}. Motivo: '{Motivo}'.",
                 centro.Id, centro.Nombre, adminId, centro.MotivoRechazo);
 
             return Ok(new
@@ -227,28 +288,111 @@ namespace AdoptMe.Api.Controllers
             });
         }
 
-        // PUT: api/admin/centros/5/activar
-        // Reactivar un centro previamente suspendido
-        [HttpPut("{id:int}/activar")]
-        public async Task<IActionResult> ActivarCentro(int id)
+        // PUT: api/admin/centros/5/suspender
+        // Suspender operativamente un centro ya aprobado conservando cuenta, datos e historial
+        [HttpPut("{id:int}/suspender")]
+        public async Task<IActionResult> SuspenderCentro(int id, [FromBody] SuspenderCentroDto dto)
         {
             var centro = await _context.Centros.FirstOrDefaultAsync(c => c.Id == id);
             if (centro == null)
             {
                 return NotFound(new { mensaje = $"Centro con ID {id} no encontrado." });
+            }
+
+            if (!string.Equals(centro.Estado, "Aprobado", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new
+                {
+                    mensaje = $"Solo se puede suspender operativamente un centro en estado 'Aprobado'. Estado actual: '{centro.Estado}'."
+                });
+            }
+
+            string motivoLimpio = dto.Motivo?.Trim() ?? string.Empty;
+            if (motivoLimpio.Length < 5)
+            {
+                return BadRequest(new { mensaje = "El motivo de suspensión es obligatorio y debe contener al menos 5 caracteres explicativos." });
+            }
+
+            if (!centro.Activo && !string.IsNullOrWhiteSpace(centro.MotivoSuspension))
+            {
+                return Conflict(new { mensaje = "El centro ya se encuentra formalmente suspendido." });
+            }
+
+            int? adminId = ObtenerAdminId();
+
+            centro.Activo = false;
+            centro.MotivoSuspension = motivoLimpio;
+            centro.FechaSuspension = DateTime.UtcNow;
+            centro.SuspendidoPorAdminId = adminId;
+            centro.FechaReactivacion = null;
+            centro.FechaActualizacion = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Centro ID {Id} ('{Nombre}') suspendido operativamente por administrador ID {AdminId}. Motivo: '{Motivo}'.",
+                centro.Id, centro.Nombre, adminId, centro.MotivoSuspension);
+
+            return Ok(new
+            {
+                mensaje = "Centro de adopción suspendido operativamente.",
+                id = centro.Id,
+                estado = centro.Estado,
+                activo = centro.Activo,
+                motivoSuspension = centro.MotivoSuspension,
+                fechaSuspension = centro.FechaSuspension
+            });
+        }
+
+        // PUT: api/admin/centros/5/reactivar
+        // Reactivar un centro previamente suspendido o inactivo, conservando historial de auditoría
+        [HttpPut("{id:int}/reactivar")]
+        public async Task<IActionResult> ReactivarCentro(int id)
+        {
+            var centro = await _context.Centros.FirstOrDefaultAsync(c => c.Id == id);
+            if (centro == null)
+            {
+                return NotFound(new { mensaje = $"Centro con ID {id} no encontrado." });
+            }
+
+            if (!string.Equals(centro.Estado, "Aprobado", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new
+                {
+                    mensaje = $"Solo se puede reactivar un centro con estado 'Aprobado'. Estado actual: '{centro.Estado}'."
+                });
+            }
+
+            if (centro.Activo)
+            {
+                return Conflict(new { mensaje = "El centro ya se encuentra activo en la plataforma." });
             }
 
             centro.Activo = true;
+            centro.FechaReactivacion = DateTime.UtcNow;
             centro.FechaActualizacion = DateTime.UtcNow;
+            // Preservamos MotivoSuspension, FechaSuspension y SuspendidoPorAdminId para auditoría histórica
+
             await _context.SaveChangesAsync();
 
-            return Ok(new { mensaje = "Centro de adopción activado exitosamente.", id = centro.Id, activo = true });
+            _logger.LogInformation("Centro ID {Id} ('{Nombre}') reactivado por administrador.", centro.Id, centro.Nombre);
+
+            return Ok(new
+            {
+                mensaje = "Centro de adopción reactivado exitosamente.",
+                id = centro.Id,
+                estado = centro.Estado,
+                activo = centro.Activo,
+                fechaReactivacion = centro.FechaReactivacion
+            });
         }
 
-        // PUT: api/admin/centros/5/desactivar
-        // Suspender temporalmente un centro (oculto de búsquedas públicas)
+        // Alias retrocompatible para reactivar
+        [HttpPut("{id:int}/activar")]
+        public Task<IActionResult> ActivarCentro(int id) => ReactivarCentro(id);
+
+        // Alias retrocompatible para suspender/desactivar
         [HttpPut("{id:int}/desactivar")]
-        public async Task<IActionResult> DesactivarCentro(int id)
+        public async Task<IActionResult> DesactivarCentro(int id, [FromBody] SuspenderCentroDto? dto = null)
         {
             var centro = await _context.Centros.FirstOrDefaultAsync(c => c.Id == id);
             if (centro == null)
@@ -256,6 +400,12 @@ namespace AdoptMe.Api.Controllers
                 return NotFound(new { mensaje = $"Centro con ID {id} no encontrado." });
             }
 
+            if (dto != null && !string.IsNullOrWhiteSpace(dto.Motivo))
+            {
+                return await SuspenderCentro(id, dto);
+            }
+
+            // Desactivación técnica sin motivo formal de suspensión
             centro.Activo = false;
             centro.FechaActualizacion = DateTime.UtcNow;
             await _context.SaveChangesAsync();
@@ -264,8 +414,10 @@ namespace AdoptMe.Api.Controllers
         }
 
         // PUT: api/admin/centros/5/asignar-propietario
-        // Asignar o transferir un usuario real de rol Centro a un centro de adopción
+        // PUT: api/admin/centros/5/vincular-responsable
+        // Vincular un usuario real de rol Centro a un centro de adopción sin titular asignado (relación 1:1)
         [HttpPut("{id:int}/asignar-propietario")]
+        [HttpPut("{id:int}/vincular-responsable")]
         public async Task<IActionResult> AsignarPropietario(int id, [FromBody] AsignarPropietarioCentroDto dto)
         {
             if (!ModelState.IsValid)
@@ -284,9 +436,18 @@ namespace AdoptMe.Api.Controllers
             {
                 return Ok(new
                 {
-                    mensaje = "El usuario ya es el propietario asignado de este centro de adopción.",
+                    mensaje = "El usuario ya es el responsable asignado de este centro de adopción.",
                     centroId = centro.Id,
                     usuarioId = dto.UsuarioId
+                });
+            }
+
+            // Regla de integridad: No sobrescribir silenciosamente un responsable existente
+            if (centro.UsuarioId.HasValue)
+            {
+                return Conflict(new
+                {
+                    mensaje = "Este centro ya tiene un responsable vinculado. No se permite sobrescribir un responsable existente."
                 });
             }
 
@@ -298,10 +459,13 @@ namespace AdoptMe.Api.Controllers
 
             if (!string.Equals(usuario.Rol, "Centro", StringComparison.OrdinalIgnoreCase))
             {
-                return BadRequest(new { mensaje = $"El usuario debe tener rol 'Centro' para ser asignado como propietario. Rol actual: '{usuario.Rol}'." });
+                return BadRequest(new
+                {
+                    mensaje = $"El usuario debe tener rol 'Centro' para ser vinculado como responsable institucional. Rol actual: '{usuario.Rol}'."
+                });
             }
 
-            // Comprobar que no posea ya otro centro diferente (evitar infracción del índice único parcial)
+            // Comprobar que no posea ya otro centro diferente (evitar infracción del índice único parcial 1:1)
             bool yaPoseeOtroCentro = await _context.Centros.AnyAsync(c => c.UsuarioId == usuario.Id && c.Id != centro.Id);
             if (yaPoseeOtroCentro)
             {
@@ -309,9 +473,6 @@ namespace AdoptMe.Api.Controllers
             }
 
             int? adminId = ObtenerAdminId();
-            int? anteriorUsuarioId = centro.UsuarioId;
-            bool esTransferencia = anteriorUsuarioId.HasValue && anteriorUsuarioId.Value != usuario.Id;
-
             var strategy = _context.Database.CreateExecutionStrategy();
 
             try
@@ -325,31 +486,167 @@ namespace AdoptMe.Api.Controllers
                     await tx.CommitAsync();
                 });
 
-                if (esTransferencia)
-                {
-                    _logger.LogInformation("Transferencia de titularidad en Centro ID {CentroId} ('{NombreCentro}'): Propietario anterior Usuario ID {AnteriorId} -> Nuevo propietario Usuario ID {NuevoId}. Ejecutado por Admin ID {AdminId}.",
-                        centro.Id, centro.Nombre, anteriorUsuarioId, usuario.Id, adminId);
-                }
-                else
-                {
-                    _logger.LogInformation("Asignación de titularidad en Centro ID {CentroId} ('{NombreCentro}'): Propietario asignado Usuario ID {NuevoId}. Ejecutado por Admin ID {AdminId}.",
-                        centro.Id, centro.Nombre, usuario.Id, adminId);
-                }
+                _logger.LogInformation("Vinculación de responsable en Centro ID {CentroId} ('{NombreCentro}'): Responsable asignado Usuario ID {NuevoId}. Ejecutado por Admin ID {AdminId}.",
+                    centro.Id, centro.Nombre, usuario.Id, adminId);
 
                 return Ok(new
                 {
-                    mensaje = esTransferencia
-                        ? "Transferencia de titularidad del centro completada exitosamente."
-                        : "Propietario asignado al centro exitosamente.",
+                    mensaje = "Responsable vinculado al centro exitosamente.",
                     centroId = centro.Id,
                     usuarioId = usuario.Id
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al persistir la asignación de propietario en Centro ID {CentroId}.", centro.Id);
-                return StatusCode(500, new { mensaje = "Ocurrió un error interno al asignar el propietario del centro." });
+                _logger.LogError(ex, "Error al persistir la vinculación de responsable en Centro ID {CentroId}.", centro.Id);
+                return StatusCode(500, new { mensaje = "Ocurrió un error interno al vincular el responsable del centro." });
             }
+        }
+
+        // GET: api/admin/centros/apelaciones
+        // Listar apelaciones presentadas por centros suspendidos (por defecto, Pendientes)
+        [HttpGet("apelaciones")]
+        public async Task<ActionResult<IEnumerable<CentroApelacionDto>>> ListarApelaciones(
+            [FromQuery] string? estado = "Pendiente")
+        {
+            var query = _context.CentrosApelaciones
+                .Include(a => a.Centro)
+                .Include(a => a.RevisadoPorAdmin)
+                .AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(estado) && !string.Equals(estado.Trim(), "Todos", StringComparison.OrdinalIgnoreCase))
+            {
+                string estNorm = estado.Trim().ToLowerInvariant();
+                query = query.Where(a => a.Estado.ToLower() == estNorm);
+            }
+
+            var apelaciones = await query
+                .OrderByDescending(a => a.FechaCreacion)
+                .Select(a => new CentroApelacionDto
+                {
+                    Id = a.Id,
+                    CentroId = a.CentroId,
+                    CentroNombre = a.Centro != null ? a.Centro.Nombre : "Centro no identificado",
+                    MotivoApelacion = a.MotivoApelacion,
+                    Estado = a.Estado,
+                    FechaCreacion = a.FechaCreacion,
+                    FechaRevision = a.FechaRevision,
+                    RevisadoPorAdminId = a.RevisadoPorAdminId,
+                    RevisadoPorAdminNombre = a.RevisadoPorAdmin != null ? a.RevisadoPorAdmin.Nombre : null,
+                    RespuestaAdmin = a.RespuestaAdmin,
+                    MotivoSuspensionOriginal = a.Centro != null ? a.Centro.MotivoSuspension : null,
+                    FechaSuspensionOriginal = a.Centro != null ? a.Centro.FechaSuspension : null
+                })
+                .ToListAsync();
+
+            return Ok(apelaciones);
+        }
+
+        // PUT: api/admin/centros/apelaciones/5/aprobar
+        // Aprobar apelación y reactivar operativamente el centro suspendido
+        [HttpPut("apelaciones/{id:int}/aprobar")]
+        public async Task<IActionResult> AprobarApelacion(int id)
+        {
+            var apelacion = await _context.CentrosApelaciones
+                .Include(a => a.Centro)
+                .FirstOrDefaultAsync(a => a.Id == id);
+
+            if (apelacion == null)
+            {
+                return NotFound(new { mensaje = $"Apelación con ID {id} no encontrada." });
+            }
+
+            if (!string.Equals(apelacion.Estado, "Pendiente", StringComparison.OrdinalIgnoreCase))
+            {
+                return Conflict(new
+                {
+                    mensaje = $"Solo se pueden resolver apelaciones en estado 'Pendiente'. Estado actual: '{apelacion.Estado}'."
+                });
+            }
+
+            if (apelacion.Centro == null)
+            {
+                return NotFound(new { mensaje = "El centro asociado a esta apelación no existe en la base de datos." });
+            }
+
+            int? adminId = ObtenerAdminId();
+
+            // 1. Actualizar estado de la apelación
+            apelacion.Estado = "Aprobada";
+            apelacion.FechaRevision = DateTime.UtcNow;
+            apelacion.RevisadoPorAdminId = adminId;
+
+            // 2. Reactivar el centro de adopción
+            apelacion.Centro.Activo = true;
+            apelacion.Centro.MotivoSuspension = null;
+            apelacion.Centro.FechaReactivacion = DateTime.UtcNow;
+            apelacion.Centro.FechaActualizacion = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Apelación #{ApelacionId} aprobada por Admin ID {AdminId}. Centro #{CentroId} ('{Nombre}') reactivado.",
+                apelacion.Id, adminId, apelacion.Centro.Id, apelacion.Centro.Nombre);
+
+            return Ok(new
+            {
+                mensaje = "Apelación aprobada con éxito. El centro ha sido reactivado.",
+                apelacionId = apelacion.Id,
+                centroId = apelacion.Centro.Id,
+                estadoApelacion = apelacion.Estado,
+                centroActivo = apelacion.Centro.Activo
+            });
+        }
+
+        // PUT: api/admin/centros/apelaciones/5/rechazar
+        // Rechazar apelación con fundamentación administrativa obligatoria
+        [HttpPut("apelaciones/{id:int}/rechazar")]
+        public async Task<IActionResult> RechazarApelacion(int id, [FromBody] ResolverApelacionDto dto)
+        {
+            var apelacion = await _context.CentrosApelaciones
+                .Include(a => a.Centro)
+                .FirstOrDefaultAsync(a => a.Id == id);
+
+            if (apelacion == null)
+            {
+                return NotFound(new { mensaje = $"Apelación con ID {id} no encontrada." });
+            }
+
+            if (!string.Equals(apelacion.Estado, "Pendiente", StringComparison.OrdinalIgnoreCase))
+            {
+                return Conflict(new
+                {
+                    mensaje = $"Solo se pueden resolver apelaciones en estado 'Pendiente'. Estado actual: '{apelacion.Estado}'."
+                });
+            }
+
+            string respuestaLimpia = dto.RespuestaAdmin?.Trim() ?? string.Empty;
+            if (respuestaLimpia.Length < 5)
+            {
+                return BadRequest(new
+                {
+                    mensaje = "La fundamentación del rechazo es obligatoria y debe contener al menos 5 caracteres explicativos."
+                });
+            }
+
+            int? adminId = ObtenerAdminId();
+
+            apelacion.Estado = "Rechazada";
+            apelacion.RespuestaAdmin = respuestaLimpia;
+            apelacion.FechaRevision = DateTime.UtcNow;
+            apelacion.RevisadoPorAdminId = adminId;
+
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Apelación #{ApelacionId} rechazada por Admin ID {AdminId}. Motivo: '{Motivo}'.",
+                apelacion.Id, adminId, apelacion.RespuestaAdmin);
+
+            return Ok(new
+            {
+                mensaje = "Apelación rechazada con fundamento registrado.",
+                apelacionId = apelacion.Id,
+                estadoApelacion = apelacion.Estado,
+                respuestaAdmin = apelacion.RespuestaAdmin
+            });
         }
     }
 }

@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.example.adoptme.api.RetrofitClient
+import com.example.adoptme.components.BandejaConversacionesAdoptante
 import com.example.adoptme.components.BarraNavegacionInferior
 import com.example.adoptme.datastore.CatalogoDataStore
 import com.example.adoptme.entity.MascotaVisitadaEntity
@@ -100,6 +101,7 @@ fun PantallaPrincipalAdoptante(
 ) {
     var pantallaSeleccionada by remember { mutableStateOf("home") }
     var pantallaPreviaConsumo by remember { mutableStateOf("home") }
+    var chatAbiertoAdoptante by remember { mutableStateOf(false) }
     var mostrarPantallaExito by remember { mutableStateOf(false) }
     var mostrarMisPublicaciones by remember { mutableStateOf(false) }
     var mostrarPreferencias by remember { mutableStateOf(false) }
@@ -108,6 +110,23 @@ fun PantallaPrincipalAdoptante(
     val dataStore = catalogoDataStore ?: remember { CatalogoDataStore.obtenerInstancia(contexto) }
 
     var centrosPublicos by remember { mutableStateOf<List<com.example.adoptme.model.CentroAdopcion>>(emptyList()) }
+
+    val conteoNotificacionesNoLeidas = notificaciones.count { !it.leida && !com.example.adoptme.repository.esNotificacionPruebaE2E(it) }
+    var conteoMensajesNoLeidos by remember { mutableStateOf(0) }
+
+    // Limpieza inicial de residuos técnicos de prueba y conteo reactivo
+    LaunchedEffect(correoUsuarioActivo) {
+        val limpiadas = almacenamientoApp.limpiarNotificacionesPrueba(correoUsuarioActivo)
+        if (limpiadas > 0) {
+            notificaciones.clear()
+            notificaciones.addAll(almacenamientoApp.cargarNotificaciones(correoUsuarioActivo))
+        }
+        conteoMensajesNoLeidos = almacenamientoApp.contarMensajesNoLeidosAdoptante(correoUsuarioActivo)
+    }
+
+    LaunchedEffect(pantallaSeleccionada, mensajesChatActuales.size) {
+        conteoMensajesNoLeidos = almacenamientoApp.contarMensajesNoLeidosAdoptante(correoUsuarioActivo)
+    }
 
     LaunchedEffect(Unit) {
         try {
@@ -125,9 +144,14 @@ fun PantallaPrincipalAdoptante(
                 BarraNavegacionInferior(
                     pantalla = pantallaSeleccionada,
                     cambiarPantalla = { pantalla ->
+                        if (pantalla == "chat" && pantallaSeleccionada != "chat") {
+                            chatAbiertoAdoptante = false
+                        }
                         pantallaSeleccionada = pantalla
                     },
-                    mostrarAdmin = false
+                    mostrarAdmin = false,
+                    conteoNotificacionesNoLeidas = conteoNotificacionesNoLeidas,
+                    conteoMensajesNoLeidos = conteoMensajesNoLeidos
                 )
             }
         }
@@ -354,6 +378,43 @@ fun PantallaPrincipalAdoptante(
                                     cambiarNombreCentro(nombreCentro)
                                     cambiarCorreoCentro(correoCentro)
                                     cambiarCorreoAdoptante(correoUsuarioActivo)
+                                    almacenamientoApp.marcarMensajesComoLeidos(correoUsuarioActivo, idCentro, "Adoptante")
+                                    mensajesChatActuales.clear()
+                                    val guardados = almacenamientoApp.cargarMensajesChat(correoUsuarioActivo, idCentro)
+                                    mensajesChatActuales.addAll(guardados)
+                                    conteoMensajesNoLeidos = almacenamientoApp.contarMensajesNoLeidosAdoptante(correoUsuarioActivo)
+                                    if (mensajesChatActuales.isEmpty()) {
+                                        val fechaActual = SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(Date())
+                                        val mensajeInicial = MensajeChat(
+                                            id = System.currentTimeMillis(),
+                                            idCentro = idCentro,
+                                            remitente = correoUsuarioActivo,
+                                            receptor = correoCentro,
+                                            texto = "Hola, quisiera recibir información sobre las mascotas disponibles para adopción.",
+                                            nombreCentro = nombreCentro,
+                                            fecha = fechaActual,
+                                            esDelCentro = false
+                                        )
+                                        mensajesChatActuales.add(mensajeInicial)
+                                        almacenamientoApp.guardarMensajesChat(correoUsuarioActivo, idCentro, mensajesChatActuales)
+                                        almacenamientoApp.registrarConversacionCentro(
+                                            correoCentro = correoCentro,
+                                            idCentro = idCentro,
+                                            correoAdoptante = correoUsuarioActivo,
+                                            nombreCentro = nombreCentro,
+                                            ultimoTexto = mensajeInicial.texto,
+                                            fecha = fechaActual
+                                        )
+                                    }
+                                    almacenamientoApp.registrarConversacionAdoptante(
+                                        correoAdoptante = correoUsuarioActivo,
+                                        idCentro = idCentro,
+                                        nombreCentro = nombreCentro,
+                                        correoCentro = correoCentro,
+                                        ultimoTexto = mensajesChatActuales.lastOrNull()?.texto ?: "",
+                                        fecha = SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(Date())
+                                    )
+                                    chatAbiertoAdoptante = true
                                     pantallaSeleccionada = "chat"
                                 }
                             )
@@ -393,9 +454,12 @@ fun PantallaPrincipalAdoptante(
                                     cambiarNombreCentro(nombreCentro)
                                     cambiarCorreoCentro(correoCentro)
                                     cambiarCorreoAdoptante(correoUsuarioActivo)
+                                    // Marcar mensajes recibidos del centro como leídos
+                                    almacenamientoApp.marcarMensajesComoLeidos(correoUsuarioActivo, idCentro, "Adoptante")
                                     mensajesChatActuales.clear()
                                     val guardados = almacenamientoApp.cargarMensajesChat(correoUsuarioActivo, idCentro)
                                     mensajesChatActuales.addAll(guardados)
+                                    conteoMensajesNoLeidos = almacenamientoApp.contarMensajesNoLeidosAdoptante(correoUsuarioActivo)
                                     if (mensajesChatActuales.isEmpty()) {
                                         val fechaActual = SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(Date())
                                         val mensajeInicial = MensajeChat(
@@ -419,6 +483,15 @@ fun PantallaPrincipalAdoptante(
                                             fecha = fechaActual
                                         )
                                     }
+                                    almacenamientoApp.registrarConversacionAdoptante(
+                                        correoAdoptante = correoUsuarioActivo,
+                                        idCentro = idCentro,
+                                        nombreCentro = nombreCentro,
+                                        correoCentro = correoCentro,
+                                        ultimoTexto = mensajesChatActuales.lastOrNull()?.texto ?: "",
+                                        fecha = SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(Date())
+                                    )
+                                    chatAbiertoAdoptante = true
                                     pantallaSeleccionada = "chat"
                                 },
                                 abrirMapa = {
@@ -449,64 +522,71 @@ fun PantallaPrincipalAdoptante(
                         }
 
                         "chat" -> {
-                            if (correoAdoptanteSeleccionado != correoUsuarioActivo || mensajesChatActuales.isEmpty()) {
-                                cambiarCorreoAdoptante(correoUsuarioActivo)
-                                if (idCentroSeleccionado <= 0) {
-                                    if (centrosPublicos.isNotEmpty()) {
-                                        val primerCentro = centrosPublicos.first()
-                                        cambiarIdCentro(primerCentro.id)
-                                        cambiarNombreCentro(primerCentro.nombre)
-                                        cambiarCorreoCentro(primerCentro.contactoEjemplo)
-                                    } else {
-                                        cambiarIdCentro(1)
-                                        cambiarNombreCentro("Centro de Adopción")
-                                        cambiarCorreoCentro("contacto@adoptme.com")
+                            if (chatAbiertoAdoptante) {
+                                // Al estar en la conversación, asegurar que los mensajes recibidos se marquen como leídos
+                                almacenamientoApp.marcarMensajesComoLeidos(correoUsuarioActivo, idCentroSeleccionado, "Adoptante")
+                                conteoMensajesNoLeidos = almacenamientoApp.contarMensajesNoLeidosAdoptante(correoUsuarioActivo)
+
+                                PantallaChat(
+                                    idCentro = idCentroSeleccionado,
+                                    nombreCentro = nombreCentroSeleccionado,
+                                    correoCentro = correoCentroSeleccionado,
+                                    correoUsuarioActual = correoUsuarioActivo,
+                                    rolUsuario = "Adoptante",
+                                    correoAdoptante = correoUsuarioActivo,
+                                    mensajes = mensajesChatActuales,
+                                    enviarMensaje = enviarMensajeChat,
+                                    volver = {
+                                        chatAbiertoAdoptante = false
+                                        conteoMensajesNoLeidos = almacenamientoApp.contarMensajesNoLeidosAdoptante(correoUsuarioActivo)
                                     }
+                                )
+                            } else {
+                                val conversaciones = remember(pantallaSeleccionada, mensajesChatActuales.size, conteoMensajesNoLeidos) {
+                                    almacenamientoApp.cargarConversacionesAdoptante(correoUsuarioActivo)
                                 }
-                                val guardados = almacenamientoApp.cargarMensajesChat(correoUsuarioActivo, idCentroSeleccionado)
-                                mensajesChatActuales.clear()
-                                mensajesChatActuales.addAll(guardados)
-                                if (mensajesChatActuales.isEmpty()) {
-                                    val fechaActual = SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(Date())
-                                    val mensajeInicial = MensajeChat(
-                                        id = System.currentTimeMillis(),
-                                        idCentro = idCentroSeleccionado,
-                                        remitente = correoUsuarioActivo,
-                                        receptor = correoCentroSeleccionado,
-                                        texto = "Hola, quisiera recibir información sobre las mascotas disponibles para adopción.",
-                                        nombreCentro = nombreCentroSeleccionado,
-                                        fecha = fechaActual,
-                                        esDelCentro = false
-                                    )
-                                    mensajesChatActuales.add(mensajeInicial)
-                                    almacenamientoApp.guardarMensajesChat(correoUsuarioActivo, idCentroSeleccionado, mensajesChatActuales)
-                                    almacenamientoApp.registrarConversacionCentro(
-                                        correoCentro = correoCentroSeleccionado,
-                                        idCentro = idCentroSeleccionado,
-                                        correoAdoptante = correoUsuarioActivo,
-                                        nombreCentro = nombreCentroSeleccionado,
-                                        ultimoTexto = mensajeInicial.texto,
-                                        fecha = fechaActual
-                                    )
-                                }
+                                BandejaConversacionesAdoptante(
+                                    conversaciones = conversaciones,
+                                    alAbrirConversacion = { idCentro, nombreCentro, correoCentro ->
+                                        cambiarIdCentro(idCentro)
+                                        cambiarNombreCentro(nombreCentro)
+                                        cambiarCorreoCentro(correoCentro)
+                                        cambiarCorreoAdoptante(correoUsuarioActivo)
+                                        almacenamientoApp.marcarMensajesComoLeidos(correoUsuarioActivo, idCentro, "Adoptante")
+                                        mensajesChatActuales.clear()
+                                        val guardados = almacenamientoApp.cargarMensajesChat(correoUsuarioActivo, idCentro)
+                                        mensajesChatActuales.addAll(guardados)
+                                        conteoMensajesNoLeidos = almacenamientoApp.contarMensajesNoLeidosAdoptante(correoUsuarioActivo)
+                                        chatAbiertoAdoptante = true
+                                    },
+                                    alExplorarCentros = {
+                                        pantallaSeleccionada = "centros"
+                                    }
+                                )
                             }
-                            PantallaChat(
-                                idCentro = idCentroSeleccionado,
-                                nombreCentro = nombreCentroSeleccionado,
-                                correoCentro = correoCentroSeleccionado,
-                                correoUsuarioActual = correoUsuarioActivo,
-                                rolUsuario = "Adoptante",
-                                correoAdoptante = correoUsuarioActivo,
-                                mensajes = mensajesChatActuales,
-                                enviarMensaje = enviarMensajeChat,
-                                volver = {
-                                    pantallaSeleccionada = "centros"
-                                }
-                            )
                         }
 
                         "notifications" -> {
-                            PantallaNotificaciones(notificaciones = notificaciones)
+                            PantallaNotificaciones(
+                                notificaciones = notificaciones,
+                                onMarcarLeida = { idNotif ->
+                                    almacenamientoApp.marcarNotificacionComoLeida(correoUsuarioActivo, idNotif)
+                                    val idx = notificaciones.indexOfFirst { it.id == idNotif }
+                                    if (idx != -1) {
+                                        notificaciones[idx] = notificaciones[idx].copy(leida = true)
+                                    }
+                                },
+                                onMarcarTodasLeidas = {
+                                    almacenamientoApp.marcarTodasNotificacionesComoLeidas(correoUsuarioActivo)
+                                    for (i in notificaciones.indices) {
+                                        notificaciones[i] = notificaciones[i].copy(leida = true)
+                                    }
+                                },
+                                onEliminarNotificacion = { idNotif ->
+                                    almacenamientoApp.eliminarNotificacion(correoUsuarioActivo, idNotif)
+                                    notificaciones.removeAll { it.id == idNotif }
+                                }
+                            )
                         }
 
                         "consumo_responsable", "consumoResponsable" -> {

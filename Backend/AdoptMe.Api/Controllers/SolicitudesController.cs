@@ -256,6 +256,29 @@ namespace AdoptMe.Api.Controllers
                 return NotFound(new { mensaje = $"La solicitud con ID {id} no fue encontrada." });
             }
 
+            // Regla C7: Las solicitudes Aprobada o Rechazada son estrictamente terminales e inmutables
+            if (string.Equals(solicitud.Status, "Aprobada", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(solicitud.Status, "Rechazada", StringComparison.OrdinalIgnoreCase))
+            {
+                return Conflict(new
+                {
+                    mensaje = $"La solicitud #{id} ya se encuentra en estado terminal ('{solicitud.Status}') y no puede ser modificada."
+                });
+            }
+
+            // Regla C7: El rechazo requiere motivo obligatorio de al menos 5 caracteres
+            if (estadoNormalizado == "Rechazada")
+            {
+                string motivoLimpio = dto.Observacion?.Trim() ?? string.Empty;
+                if (motivoLimpio.Length < 5)
+                {
+                    return BadRequest(new
+                    {
+                        mensaje = "El motivo de rechazo es obligatorio y debe contener al menos 5 caracteres explicativos."
+                    });
+                }
+            }
+
             if (estadoNormalizado == "Aprobada")
             {
                 var mascota = await _context.Mascotas.FindAsync(solicitud.MascotaId);

@@ -1,7 +1,6 @@
 package com.example.adoptme.components
 
-import android.location.Geocoder
-import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +18,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -52,6 +52,8 @@ import com.example.adoptme.ui.theme.AdoptTeal
 import com.example.adoptme.ui.theme.AdoptTealDark
 import com.example.adoptme.ui.theme.AdoptTextDark
 import com.example.adoptme.ui.theme.AdoptTextSecondary
+import com.example.adoptme.utils.ResultadoGeocodificacion
+import com.example.adoptme.utils.ReverseGeocodingHelper
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -61,9 +63,7 @@ import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.Locale
 
 // Punto por defecto: Plaza Mayor de Lima (-12.046374, -77.030583)
@@ -73,6 +73,7 @@ private val PUNTO_INICIAL_LIMA = LatLng(-12.046374, -77.030583)
 fun DialogoSelectorMapa(
     latitudInicial: Double?,
     longitudInicial: Double?,
+    alConfirmarDetallado: ((Double, Double, ResultadoGeocodificacion) -> Unit)? = null,
     alConfirmar: (Double, Double, String?) -> Unit,
     alDescartar: () -> Unit
 ) {
@@ -99,36 +100,24 @@ fun DialogoSelectorMapa(
     var latitudTexto by remember { mutableStateOf(puntoSeleccionado.latitude.toString()) }
     var longitudTexto by remember { mutableStateOf(puntoSeleccionado.longitude.toString()) }
     var distritoDetectado by remember { mutableStateOf<String?>(null) }
+    var resultadoGeocodificacion by remember { mutableStateOf<ResultadoGeocodificacion?>(null) }
+    var geocodificando by remember { mutableStateOf(false) }
 
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(puntoSeleccionado, 14f)
     }
 
-    // Efecto para geocodificar distrito en segundo plano cuando cambia el punto
+    // Efecto para geocodificar dirección y distrito con ReverseGeocodingHelper
     LaunchedEffect(puntoSeleccionado) {
-        withContext(Dispatchers.IO) {
-            try {
-                if (Geocoder.isPresent()) {
-                    val geocoder = Geocoder(contexto, Locale.getDefault())
-                    val resultados = geocoder.getFromLocation(
-                        puntoSeleccionado.latitude,
-                        puntoSeleccionado.longitude,
-                        1
-                    )
-                    if (!resultados.isNullOrEmpty()) {
-                        val direccion = resultados[0]
-                        val subLoc = direccion.subLocality
-                        val loc = direccion.locality
-                        val texto = listOfNotNull(subLoc, loc).filter { it.isNotBlank() }.distinct().joinToString(", ")
-                        if (texto.isNotBlank()) {
-                            distritoDetectado = texto
-                        }
-                    }
-                }
-            } catch (_: Exception) {
-                // Fallback silencioso si no hay conexión de geocodificación
-            }
-        }
+        geocodificando = true
+        val res = ReverseGeocodingHelper.obtenerDireccion(
+            contexto,
+            puntoSeleccionado.latitude,
+            puntoSeleccionado.longitude
+        )
+        resultadoGeocodificacion = res
+        distritoDetectado = res.distrito.ifBlank { res.direccionCompleta }
+        geocodificando = false
     }
 
     Dialog(
@@ -139,7 +128,7 @@ fun DialogoSelectorMapa(
             modifier = Modifier
                 .fillMaxWidth(0.95f)
                 .clip(RoundedCornerShape(20.dp)),
-            color = AdoptCardWhite,
+            color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp
         ) {
             Column(
@@ -150,26 +139,36 @@ fun DialogoSelectorMapa(
                 // Cabecera
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    IconButton(
+                        onClick = alDescartar,
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.flecha_izquierda),
+                            contentDescription = "Volver",
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "📍 Ubicación de la mascota",
+                            text = "📍 Ubicación en el mapa",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = AdoptTextDark
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Toca el mapa para fijar el punto exacto de referencia.",
+                            text = "Toca el mapa para fijar el punto exacto.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = AdoptTextSecondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     TextButton(onClick = { modoManual = !modoManual }) {
                         Text(
                             text = if (modoManual) "Ver mapa" else "Manual",
-                            color = AdoptTeal,
+                            color = MaterialTheme.colorScheme.primary,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -182,7 +181,9 @@ fun DialogoSelectorMapa(
                     // Entrada manual de coordenadas
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = AdoptMeBg),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
@@ -190,7 +191,7 @@ fun DialogoSelectorMapa(
                                 text = "Ingreso manual de coordenadas (GPS opcional)",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Bold,
-                                color = AdoptTextDark
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             OutlinedTextField(
@@ -252,7 +253,7 @@ fun DialogoSelectorMapa(
                                 Marker(
                                     state = MarkerState(position = puntoSeleccionado),
                                     title = "Ubicación seleccionada",
-                                    snippet = distritoDetectado ?: "Punto de entrega/adopción"
+                                    snippet = distritoDetectado ?: "Punto de referencia"
                                 )
                             }
                         }
@@ -317,31 +318,77 @@ fun DialogoSelectorMapa(
                         }
                     }
 
-                    // Información de coordenadas
+                    // Información técnica de coordenadas
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
                             text = String.format(Locale.US, "Lat: %.4f", puntoSeleccionado.latitude),
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Medium,
-                            color = AdoptTextDark
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             text = String.format(Locale.US, "Lon: %.4f", puntoSeleccionado.longitude),
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Medium,
-                            color = AdoptTextDark
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
 
-                if (distritoDetectado != null) {
+                // Resultado de geocodificación inversa inteligente
+                if (geocodificando) {
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Distrito sugerido: $distritoDetectado",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = AdoptTealDark,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp,
+                            color = AdoptTeal
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Consultando dirección física...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else if (resultadoGeocodificacion != null) {
+                    val res = resultadoGeocodificacion!!
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                            if (res.fueEncontrada) {
+                                Text(
+                                    text = "📍 ${res.direccionCompleta}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                if (res.distrito.isNotBlank()) {
+                                    Text(
+                                        text = "Distrito: ${res.distrito}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = AdoptTealDark,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            } else if (res.mensajeFallback != null) {
+                                Text(
+                                    text = res.mensajeFallback,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
                 }
 
                 if (mensajeGps != null) {
@@ -361,15 +408,25 @@ fun DialogoSelectorMapa(
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = alDescartar) {
-                        Text("Cancelar", color = AdoptTextSecondary)
+                        Text("Cancelar", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
+                            val finalRes = resultadoGeocodificacion ?: ReverseGeocodingHelper.resultadoFallback(
+                                puntoSeleccionado.latitude,
+                                puntoSeleccionado.longitude,
+                                "Seleccionado manualmente"
+                            )
+                            alConfirmarDetallado?.invoke(
+                                puntoSeleccionado.latitude,
+                                puntoSeleccionado.longitude,
+                                finalRes
+                            )
                             alConfirmar(
                                 puntoSeleccionado.latitude,
                                 puntoSeleccionado.longitude,
-                                distritoDetectado
+                                finalRes.distrito.ifBlank { finalRes.direccionCompleta }
                             )
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = AdoptOrange),

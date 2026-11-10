@@ -44,7 +44,10 @@ data class CentroPropietarioDto(
     @SerializedName("fechaRevision") val fechaRevision: String? = null,
     @SerializedName("esDemostrativo") val esDemostrativo: Boolean = false,
     @SerializedName("activo") val activo: Boolean = false,
-    @SerializedName("fechaActualizacion") val fechaActualizacion: String? = null
+    @SerializedName("fechaActualizacion") val fechaActualizacion: String? = null,
+    @SerializedName("motivoSuspension") val motivoSuspension: String? = null,
+    @SerializedName("fechaSuspension") val fechaSuspension: String? = null,
+    @SerializedName("fechaReactivacion") val fechaReactivacion: String? = null
 )
 
 /**
@@ -77,7 +80,12 @@ data class CentroAdminDto(
     @SerializedName("revisadoPorUsuarioId") val revisadoPorUsuarioId: Int? = null,
     @SerializedName("revisadoPorNombre") val revisadoPorNombre: String? = null,
     @SerializedName("fechaCreacion") val fechaCreacion: String? = null,
-    @SerializedName("totalMascotasPublicadas") val totalMascotasPublicadas: Int = 0
+    @SerializedName("totalMascotasPublicadas") val totalMascotasPublicadas: Int = 0,
+    @SerializedName("motivoSuspension") val motivoSuspension: String? = null,
+    @SerializedName("fechaSuspension") val fechaSuspension: String? = null,
+    @SerializedName("fechaReactivacion") val fechaReactivacion: String? = null,
+    @SerializedName("suspendidoPorAdminId") val suspendidoPorAdminId: Int? = null,
+    @SerializedName("suspendidoPorAdminNombre") val suspendidoPorAdminNombre: String? = null
 )
 
 /**
@@ -88,7 +96,10 @@ data class EstadoCentroDto(
     @SerializedName("estado") val estado: String? = null,
     @SerializedName("activo") val activo: Boolean = false,
     @SerializedName("esDemostrativo") val esDemostrativo: Boolean = false,
-    @SerializedName("motivoRechazo") val motivoRechazo: String? = null
+    @SerializedName("motivoRechazo") val motivoRechazo: String? = null,
+    @SerializedName("motivoSuspension") val motivoSuspension: String? = null,
+    @SerializedName("fechaSuspension") val fechaSuspension: String? = null,
+    @SerializedName("fechaReactivacion") val fechaReactivacion: String? = null
 )
 
 /**
@@ -146,7 +157,14 @@ data class RechazarCentroRequest(
 )
 
 /**
- * Asignación administrativa de usuario responsable (PUT /api/admin/centros/{id}/asignar-propietario).
+ * Suspensión administrativa con justificación obligatoria (PUT /api/admin/centros/{id}/suspender).
+ */
+data class SuspenderCentroRequest(
+    @SerializedName("motivo") val motivo: String
+)
+
+/**
+ * Asignación / Vinculación administrativa de usuario responsable (PUT /api/admin/centros/{id}/vincular-responsable).
  */
 data class AsignarPropietarioCentroRequest(
     @SerializedName("usuarioId") val usuarioId: Int
@@ -161,6 +179,9 @@ data class OperacionCentroResponse(
     @SerializedName("estado") val estado: String? = null,
     @SerializedName("activo") val activo: Boolean? = null,
     @SerializedName("motivoRechazo") val motivoRechazo: String? = null,
+    @SerializedName("motivoSuspension") val motivoSuspension: String? = null,
+    @SerializedName("fechaSuspension") val fechaSuspension: String? = null,
+    @SerializedName("fechaReactivacion") val fechaReactivacion: String? = null,
     @SerializedName("fechaRevision") val fechaRevision: String? = null,
     @SerializedName("centroId") val centroId: Int? = null,
     @SerializedName("usuarioId") val usuarioId: Int? = null,
@@ -187,3 +208,35 @@ fun CentroPublicoDto.toCentroAdopcion(): CentroAdopcion {
         esDemostrativo = esDemostrativo
     )
 }
+
+/**
+ * Solicitud de apelación formal de suspensión enviada por el centro (POST /api/centros/mi-centro/apelaciones).
+ */
+data class CrearApelacionRequest(
+    @SerializedName("motivoApelacion") val motivoApelacion: String
+)
+
+/**
+ * Resolución administrativa de una apelación (PUT /api/admin/centros/apelaciones/{id}/rechazar).
+ */
+data class ResolverApelacionRequest(
+    @SerializedName("respuestaAdmin") val respuestaAdmin: String? = null
+)
+
+/**
+ * DTO de apelación institucional con trazabilidad de revisión.
+ */
+data class CentroApelacionDto(
+    @SerializedName("id") val id: Int = 0,
+    @SerializedName("centroId") val centroId: Int = 0,
+    @SerializedName("centroNombre") val centroNombre: String = "",
+    @SerializedName("motivoApelacion") val motivoApelacion: String = "",
+    @SerializedName("estado") val estado: String = "Pendiente",
+    @SerializedName("fechaCreacion") val fechaCreacion: String? = null,
+    @SerializedName("fechaRevision") val fechaRevision: String? = null,
+    @SerializedName("revisadoPorAdminId") val revisadoPorAdminId: Int? = null,
+    @SerializedName("revisadoPorAdminNombre") val revisadoPorAdminNombre: String? = null,
+    @SerializedName("respuestaAdmin") val respuestaAdmin: String? = null,
+    @SerializedName("motivoSuspensionOriginal") val motivoSuspensionOriginal: String? = null,
+    @SerializedName("fechaSuspensionOriginal") val fechaSuspensionOriginal: String? = null
+)

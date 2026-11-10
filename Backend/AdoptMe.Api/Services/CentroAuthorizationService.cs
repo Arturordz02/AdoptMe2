@@ -119,11 +119,15 @@ namespace AdoptMe.Api.Services
 
             if (!auth.Centro.Activo)
             {
+                string mensajeInactivo = !string.IsNullOrWhiteSpace(auth.Centro.MotivoSuspension)
+                    ? $"El centro se encuentra temporalmente suspendido por administración. Motivo: {auth.Centro.MotivoSuspension}"
+                    : "El centro se encuentra temporalmente inactivo. Contacta a un Administrador.";
+
                 return new CentroAuthResult
                 {
                     EsValido = false,
                     CodigoError = 403,
-                    MensajeError = "El centro se encuentra temporalmente inactivo. Contacta a un Administrador."
+                    MensajeError = mensajeInactivo
                 };
             }
 

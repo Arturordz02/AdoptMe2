@@ -60,6 +60,7 @@ import com.example.adoptme.components.TarjetaMascotaAdmin
 import com.example.adoptme.components.TarjetaSolicitudAdmin
 import com.example.adoptme.model.AdoptionRequest
 import com.example.adoptme.model.CentroAdminDto
+import com.example.adoptme.model.CentroApelacionDto
 import com.example.adoptme.model.Pet
 import com.example.adoptme.ui.theme.AdoptCardWhite
 import com.example.adoptme.ui.theme.AdoptMeBg
@@ -91,7 +92,7 @@ import com.example.adoptme.viewmodel.AdminCentrosViewModel
 fun PantallaAdministrador(
     solicitudes: List<AdoptionRequest>,
     aprobar: (AdoptionRequest) -> Pair<Boolean, String>,
-    rechazar: (AdoptionRequest) -> Unit,
+    rechazar: (solicitud: AdoptionRequest, motivo: String) -> Unit = { _, _ -> },
     cerrarSesion: () -> Unit = {},
     mascotas: List<Pet> = emptyList(),
     publicaciones: List<Pet> = emptyList(),
@@ -108,6 +109,12 @@ fun PantallaAdministrador(
 
     val centrosUiState by adminCentrosViewModel.uiState.collectAsState()
     val centrosOperando by adminCentrosViewModel.estaOperando.collectAsState()
+    val apelacionesPendientes by adminCentrosViewModel.apelacionesPendientes.collectAsState()
+    var subPestanaCentros by remember { mutableStateOf("solicitudes") } // "solicitudes", "apelaciones"
+    var apelacionParaAprobar by remember { mutableStateOf<CentroApelacionDto?>(null) }
+    var apelacionParaRechazar by remember { mutableStateOf<CentroApelacionDto?>(null) }
+    var respuestaRechazoApelacionTexto by remember { mutableStateOf("") }
+    var errorRespuestaRechazoApelacion by remember { mutableStateOf<String?>(null) }
 
     // Diálogos de control para mascotas y solicitudes
     var mascotaParaDetalle by remember { mutableStateOf<Pet?>(null) }
@@ -119,17 +126,21 @@ fun PantallaAdministrador(
 
     // Diálogos de control para centros
     var centroParaAprobar by remember { mutableStateOf<CentroAdminDto?>(null) }
-    var centroParaDesactivar by remember { mutableStateOf<CentroAdminDto?>(null) }
+    var centroParaSuspender by remember { mutableStateOf<CentroAdminDto?>(null) }
+    var motivoSuspensionTexto by remember { mutableStateOf("") }
+    var errorMotivoSuspension by remember { mutableStateOf<String?>(null) }
+    var centroParaReactivar by remember { mutableStateOf<CentroAdminDto?>(null) }
     var centroParaRechazar by remember { mutableStateOf<CentroAdminDto?>(null) }
     var motivoRechazoTexto by remember { mutableStateOf("") }
     var errorMotivoRechazo by remember { mutableStateOf<String?>(null) }
-    var centroParaAsignar by remember { mutableStateOf<CentroAdminDto?>(null) }
-    var usuarioIdAsignarTexto by remember { mutableStateOf("") }
-    var errorUsuarioIdAsignar by remember { mutableStateOf<String?>(null) }
+    var centroParaVincular by remember { mutableStateOf<CentroAdminDto?>(null) }
+    var usuarioIdVincularTexto by remember { mutableStateOf("") }
+    var errorUsuarioIdVincular by remember { mutableStateOf<String?>(null) }
 
-    // Cargar centros al inicio
+    // Cargar centros y apelaciones al inicio
     LaunchedEffect(Unit) {
         adminCentrosViewModel.cargarCentros()
+        adminCentrosViewModel.cargarApelaciones()
     }
 
     // Cálculo de métricas
@@ -474,7 +485,7 @@ fun PantallaAdministrador(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Solicitudes de Centros",
+                        text = "Centros de Adopción",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = AdoptTextDark
@@ -486,107 +497,294 @@ fun PantallaAdministrador(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Filtros de estado de centros
+                // Selector de subpestañas: Directorio vs Apelaciones
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf("Todos", "Pendiente", "Aprobado", "Rechazado").forEach { filtro ->
-                        val seleccionado = filtroCentros == filtro
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (seleccionado) AdoptTeal else AdoptCardWhite,
-                            border = BorderStroke(1.dp, if (seleccionado) AdoptTeal else BorderWarm),
-                            modifier = Modifier.clickable {
-                                filtroCentros = filtro
-                                adminCentrosViewModel.cargarCentros(
-                                    estado = if (filtro == "Todos") null else filtro
-                                )
-                            }
+                    val subSol = subPestanaCentros == "solicitudes"
+                    val subApel = subPestanaCentros == "apelaciones"
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (subSol) AdoptTeal else AdoptCardWhite,
+                        border = BorderStroke(1.dp, if (subSol) AdoptTeal else BorderWarm),
+                        modifier = Modifier.weight(1f).clickable { subPestanaCentros = "solicitudes" }
+                    ) {
+                        Text(
+                            text = "Directorio y Estados",
+                            color = if (subSol) Color.White else AdoptTextDark,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (subApel) AdoptOrange else AdoptCardWhite,
+                        border = BorderStroke(1.dp, if (subApel) AdoptOrange else BorderWarm),
+                        modifier = Modifier.weight(1f).clickable {
+                            subPestanaCentros = "apelaciones"
+                            adminCentrosViewModel.cargarApelaciones()
+                        }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = filtro,
-                                color = if (seleccionado) Color.White else AdoptTextSecondary,
+                                text = "Apelaciones",
+                                color = if (subApel) Color.White else AdoptTextDark,
                                 style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (seleccionado) FontWeight.Bold else FontWeight.Normal,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                fontWeight = FontWeight.Bold
                             )
+                            if (apelacionesPendientes.isNotEmpty()) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (subApel) Color.White else MaterialTheme.colorScheme.error
+                                ) {
+                                    Text(
+                                        text = "${apelacionesPendientes.size}",
+                                        color = if (subApel) AdoptOrange else Color.White,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                when (val state = centrosUiState) {
-                    is AdminCentrosUiState.Cargando -> {
-                        Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = AdoptTeal)
-                        }
-                    }
-                    is AdminCentrosUiState.Error -> {
+                if (subPestanaCentros == "apelaciones") {
+                    // VISTA DE APELACIONES PENDIENTES
+                    if (apelacionesPendientes.isEmpty()) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)),
-                            shape = RoundedCornerShape(14.dp)
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = AdoptCardWhite),
+                            border = BorderStroke(1.dp, BorderWarm)
                         ) {
-                            Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(state.mensaje, color = MaterialTheme.colorScheme.error)
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(28.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("⚖️", fontSize = 34.sp)
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Button(onClick = { adminCentrosViewModel.refrescar() }) {
-                                    Text("Reintentar")
+                                Text(
+                                    text = "No hay apelaciones pendientes de revisión.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = AdoptTextSecondary,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            apelacionesPendientes.forEach { apelacion ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = CardDefaults.cardColors(containerColor = AdoptCardWhite),
+                                    border = BorderStroke(1.dp, BorderWarm),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "🏡 ${apelacion.centroNombre}",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = AdoptTextDark
+                                            )
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = Color(0xFFF59E0B).copy(alpha = 0.2f)
+                                            ) {
+                                                Text(
+                                                    text = "Apelación #${apelacion.id}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFFB45309),
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+
+                                        if (!apelacion.motivoSuspensionOriginal.isNullOrBlank()) {
+                                            Text(
+                                                text = "Motivo de suspensión previa: ${apelacion.motivoSuspensionOriginal}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.error
+                                            )
+                                        }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = AdoptMeBg,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(modifier = Modifier.padding(10.dp)) {
+                                                Text(
+                                                    text = "Fundamento presentado por el Centro:",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = AdoptTealDark
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = apelacion.motivoApelacion,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = AdoptTextDark
+                                                )
+                                            }
+                                        }
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Button(
+                                                onClick = { apelacionParaAprobar = apelacion },
+                                                enabled = !centrosOperando,
+                                                shape = RoundedCornerShape(8.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = AdoptTeal),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text("Aprobar y Reactivar", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                            OutlinedButton(
+                                                onClick = {
+                                                    apelacionParaRechazar = apelacion
+                                                    respuestaRechazoApelacionTexto = ""
+                                                    errorRespuestaRechazoApelacion = null
+                                                },
+                                                enabled = !centrosOperando,
+                                                shape = RoundedCornerShape(8.dp),
+                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text("Rechazar", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
-                    is AdminCentrosUiState.Exito -> {
-                        val listaCentros = state.centros
-                        if (listaCentros.isEmpty()) {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = CardDefaults.cardColors(containerColor = AdoptCardWhite),
-                                border = BorderStroke(1.dp, BorderWarm)
-                            ) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth().padding(24.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text("🏡", fontSize = 32.sp)
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        text = "No se encontraron centros con estado '$filtroCentros'.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = AdoptTextSecondary,
-                                        textAlign = TextAlign.Center
+                } else {
+                    // Filtros de estado de centros
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf("Todos", "Pendiente", "Aprobado", "Rechazado").forEach { filtro ->
+                            val seleccionado = filtroCentros == filtro
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (seleccionado) AdoptTeal else AdoptCardWhite,
+                                border = BorderStroke(1.dp, if (seleccionado) AdoptTeal else BorderWarm),
+                                modifier = Modifier.clickable {
+                                    filtroCentros = filtro
+                                    adminCentrosViewModel.cargarCentros(
+                                        estado = if (filtro == "Todos") null else filtro
                                     )
                                 }
+                            ) {
+                                Text(
+                                    text = filtro,
+                                    color = if (seleccionado) Color.White else AdoptTextSecondary,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (seleccionado) FontWeight.Bold else FontWeight.Normal,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
                             }
-                        } else {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                listaCentros.forEach { centro ->
-                                    TarjetaAdminCentroItem(
-                                        centro = centro,
-                                        estaOperando = centrosOperando,
-                                        alAprobar = { centroParaAprobar = centro },
-                                        alRechazar = {
-                                            centroParaRechazar = centro
-                                            motivoRechazoTexto = ""
-                                            errorMotivoRechazo = null
-                                        },
-                                        alActivar = {
-                                            adminCentrosViewModel.activarCentro(centro.id) { ok, msg ->
-                                                if (ok) mensajeConfirmacion = msg
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    when (val state = centrosUiState) {
+                        is AdminCentrosUiState.Cargando -> {
+                            Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = AdoptTeal)
+                            }
+                        }
+                        is AdminCentrosUiState.Error -> {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(state.mensaje, color = MaterialTheme.colorScheme.error)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(onClick = { adminCentrosViewModel.refrescar() }) {
+                                        Text("Reintentar")
+                                    }
+                                }
+                            }
+                        }
+                        is AdminCentrosUiState.Exito -> {
+                            val listaCentros = state.centros
+                            if (listaCentros.isEmpty()) {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = CardDefaults.cardColors(containerColor = AdoptCardWhite),
+                                    border = BorderStroke(1.dp, BorderWarm)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Text("🏡", fontSize = 32.sp)
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            text = "No se encontraron centros con estado '$filtroCentros'.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = AdoptTextSecondary,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                }
+                            } else {
+                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    listaCentros.forEach { centro ->
+                                        TarjetaAdminCentroItem(
+                                            centro = centro,
+                                            estaOperando = centrosOperando,
+                                            alAprobar = { centroParaAprobar = centro },
+                                            alRechazar = {
+                                                centroParaRechazar = centro
+                                                motivoRechazoTexto = ""
+                                                errorMotivoRechazo = null
+                                            },
+                                            alSuspender = {
+                                                centroParaSuspender = centro
+                                                motivoSuspensionTexto = ""
+                                                errorMotivoSuspension = null
+                                            },
+                                            alReactivar = {
+                                                centroParaReactivar = centro
+                                            },
+                                            alVincularResponsable = {
+                                                centroParaVincular = centro
+                                                usuarioIdVincularTexto = ""
+                                                errorUsuarioIdVincular = null
                                             }
-                                        },
-                                        alDesactivar = {
-                                            centroParaDesactivar = centro
-                                        },
-                                        alAsignarPropietario = {
-                                            centroParaAsignar = centro
-                                            usuarioIdAsignarTexto = centro.usuarioId?.toString() ?: ""
-                                            errorUsuarioIdAsignar = null
-                                        }
-                                    )
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -703,46 +901,98 @@ fun PantallaAdministrador(
         )
     }
 
-    // 1b. Confirmar Desactivación de Centro
-    if (centroParaDesactivar != null) {
-        val c = centroParaDesactivar!!
+    // 1b. Suspender Centro con Justificación Obligatoria
+    if (centroParaSuspender != null) {
+        val c = centroParaSuspender!!
         AlertDialog(
-            onDismissRequest = { centroParaDesactivar = null },
-            title = { Text("Desactivar Centro de Adopción", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error) },
+            onDismissRequest = { centroParaSuspender = null },
+            title = { Text("Suspender Centro de Adopción", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error) },
             text = {
-                Text("¿Confirmas la desactivación de '${c.nombre}' (ID #${c.id})? El centro dejará de ser visible en el catálogo público y en el mapa de adopciones.")
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Ingresa el motivo obligatorio de la suspensión operativa para '${c.nombre}'. El centro dejará de ser visible en el catálogo y no podrá publicar nuevas mascotas:")
+                    OutlinedTextField(
+                        value = motivoSuspensionTexto,
+                        onValueChange = {
+                            motivoSuspensionTexto = it
+                            if (errorMotivoSuspension != null) errorMotivoSuspension = null
+                        },
+                        label = { Text("Motivo de suspensión (mínimo 5 caracteres) *") },
+                        maxLines = 4,
+                        modifier = Modifier.fillMaxWidth(),
+                        isError = errorMotivoSuspension != null
+                    )
+                    errorMotivoSuspension?.let { err ->
+                        Text(err, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
             },
             confirmButton = {
                 Button(
                     onClick = {
+                        if (motivoSuspensionTexto.trim().length < 5) {
+                            errorMotivoSuspension = "El motivo debe contener al menos 5 caracteres explicativos."
+                            return@Button
+                        }
+                        val mot = motivoSuspensionTexto.trim()
                         val cid = c.id
-                        centroParaDesactivar = null
-                        adminCentrosViewModel.desactivarCentro(cid) { ok, msg ->
+                        centroParaSuspender = null
+                        adminCentrosViewModel.suspenderCentro(cid, mot) { ok, msg ->
                             if (ok) mensajeConfirmacion = msg
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Desactivar centro")
+                    Text("Suspender centro")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { centroParaDesactivar = null }) {
+                TextButton(onClick = { centroParaSuspender = null }) {
                     Text("Cancelar")
                 }
             }
         )
     }
 
-    // 2. Rechazar Centro con Justificación Obligatoria
+    // 1c. Reactivar Centro Suspendido / Inactivo
+    if (centroParaReactivar != null) {
+        val c = centroParaReactivar!!
+        AlertDialog(
+            onDismissRequest = { centroParaReactivar = null },
+            title = { Text("Reactivar Centro de Adopción", fontWeight = FontWeight.Bold, color = AdoptTeal) },
+            text = {
+                Text("¿Confirmas la reactivación de '${c.nombre}' (ID #${c.id})? El centro volverá a estar activo en el catálogo público y sus publicaciones pausadas se reanudarán.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val cid = c.id
+                        centroParaReactivar = null
+                        adminCentrosViewModel.reactivarCentro(cid) { ok, msg ->
+                            if (ok) mensajeConfirmacion = msg
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AdoptTeal)
+                ) {
+                    Text("Reactivar centro")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { centroParaReactivar = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // 2. Rechazar Solicitud de Centro con Justificación Obligatoria
     if (centroParaRechazar != null) {
         val c = centroParaRechazar!!
         AlertDialog(
             onDismissRequest = { centroParaRechazar = null },
-            title = { Text("Rechazar Centro de Adopción", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error) },
+            title = { Text("Rechazar Solicitud de Centro", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Ingresa el motivo obligatorio del rechazo para '${c.nombre}'. El responsable del centro verá esta justificación en su pantalla para corregir la solicitud:")
+                    Text("Ingresa el motivo obligatorio del rechazo de solicitud para '${c.nombre}'. El responsable del centro verá esta justificación en su pantalla para corregir su solicitud:")
                     OutlinedTextField(
                         value = motivoRechazoTexto,
                         onValueChange = {
@@ -775,7 +1025,7 @@ fun PantallaAdministrador(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Rechazar con motivo")
+                    Text("Rechazar solicitud")
                 }
             },
             dismissButton = {
@@ -786,27 +1036,27 @@ fun PantallaAdministrador(
         )
     }
 
-    // 3. Asignar Propietario al Centro
-    if (centroParaAsignar != null) {
-        val c = centroParaAsignar!!
+    // 3. Vincular Responsable al Centro (1:1)
+    if (centroParaVincular != null) {
+        val c = centroParaVincular!!
         AlertDialog(
-            onDismissRequest = { centroParaAsignar = null },
-            title = { Text("Asignar Propietario", fontWeight = FontWeight.Bold) },
+            onDismissRequest = { centroParaVincular = null },
+            title = { Text("Vincular Usuario Responsable", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Asigna o transfiere la titularidad de '${c.nombre}' a un usuario con rol 'Centro':")
+                    Text("Vincula un usuario con rol 'Centro' que no tenga otro centro asignado a '${c.nombre}':")
                     OutlinedTextField(
-                        value = usuarioIdAsignarTexto,
+                        value = usuarioIdVincularTexto,
                         onValueChange = {
-                            usuarioIdAsignarTexto = it
-                            if (errorUsuarioIdAsignar != null) errorUsuarioIdAsignar = null
+                            usuarioIdVincularTexto = it
+                            if (errorUsuarioIdVincular != null) errorUsuarioIdVincular = null
                         },
                         label = { Text("ID numérico de Usuario *") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        isError = errorUsuarioIdAsignar != null
+                        isError = errorUsuarioIdVincular != null
                     )
-                    errorUsuarioIdAsignar?.let { err ->
+                    errorUsuarioIdVincular?.let { err ->
                         Text(err, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
                 }
@@ -814,24 +1064,120 @@ fun PantallaAdministrador(
             confirmButton = {
                 Button(
                     onClick = {
-                        val uid = usuarioIdAsignarTexto.trim().toIntOrNull()
+                        val uid = usuarioIdVincularTexto.trim().toIntOrNull()
                         if (uid == null || uid <= 0) {
-                            errorUsuarioIdAsignar = "Ingresa un ID numérico de usuario válido."
+                            errorUsuarioIdVincular = "Ingresa un ID numérico de usuario válido."
                             return@Button
                         }
                         val cid = c.id
-                        centroParaAsignar = null
-                        adminCentrosViewModel.asignarPropietario(cid, uid) { ok, msg ->
-                            if (ok) mensajeConfirmacion = msg
+                        centroParaVincular = null
+                        adminCentrosViewModel.vincularResponsable(cid, uid) { ok, msg ->
+                            if (ok) {
+                                mensajeConfirmacion = msg
+                            } else {
+                                mensajeValidacion = msg
+                            }
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AdoptTeal)
                 ) {
-                    Text("Asignar titular")
+                    Text("Vincular")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { centroParaAsignar = null }) {
+                TextButton(onClick = { centroParaVincular = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // Diálogos de control para Apelaciones
+    if (apelacionParaAprobar != null) {
+        val a = apelacionParaAprobar!!
+        AlertDialog(
+            onDismissRequest = { apelacionParaAprobar = null },
+            title = { Text("Aprobar Apelación y Reactivar", fontWeight = FontWeight.Bold, color = AdoptTealDark) },
+            text = {
+                Text("¿Confirmas la aprobación de la apelación #${a.id} del centro '${a.centroNombre}'? El centro será reactivado operativamente de inmediato y volverá a ser visible en el catálogo público.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val aid = a.id
+                        apelacionParaAprobar = null
+                        adminCentrosViewModel.aprobarApelacion(aid) { ok, msg ->
+                            if (ok) mensajeConfirmacion = msg else mensajeValidacion = msg
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AdoptTeal)
+                ) {
+                    Text("Aprobar y Reactivar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { apelacionParaAprobar = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    if (apelacionParaRechazar != null) {
+        val a = apelacionParaRechazar!!
+        AlertDialog(
+            onDismissRequest = {
+                apelacionParaRechazar = null
+                respuestaRechazoApelacionTexto = ""
+                errorRespuestaRechazoApelacion = null
+            },
+            title = { Text("Rechazar Apelación", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Ingresa la fundamentación administrativa del rechazo para la apelación de '${a.centroNombre}'. El centro permanecerá suspendido:")
+                    OutlinedTextField(
+                        value = respuestaRechazoApelacionTexto,
+                        onValueChange = {
+                            respuestaRechazoApelacionTexto = it
+                            if (errorRespuestaRechazoApelacion != null) errorRespuestaRechazoApelacion = null
+                        },
+                        label = { Text("Fundamento del rechazo (mínimo 5 caracteres) *") },
+                        minLines = 3,
+                        maxLines = 5,
+                        modifier = Modifier.fillMaxWidth(),
+                        isError = errorRespuestaRechazoApelacion != null
+                    )
+                    errorRespuestaRechazoApelacion?.let { err ->
+                        Text(err, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val resp = respuestaRechazoApelacionTexto.trim()
+                        if (resp.length < 5) {
+                            errorRespuestaRechazoApelacion = "La fundamentación debe contener al menos 5 caracteres."
+                            return@Button
+                        }
+                        val aid = a.id
+                        apelacionParaRechazar = null
+                        adminCentrosViewModel.rechazarApelacion(aid, resp) { ok, msg ->
+                            if (ok) mensajeConfirmacion = msg else mensajeValidacion = msg
+                        }
+                        respuestaRechazoApelacionTexto = ""
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Confirmar Rechazo")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    apelacionParaRechazar = null
+                    respuestaRechazoApelacionTexto = ""
+                    errorRespuestaRechazoApelacion = null
+                }) {
                     Text("Cancelar")
                 }
             }
@@ -954,9 +1300,9 @@ fun TarjetaAdminCentroItem(
     estaOperando: Boolean,
     alAprobar: () -> Unit,
     alRechazar: () -> Unit,
-    alActivar: () -> Unit,
-    alDesactivar: () -> Unit,
-    alAsignarPropietario: () -> Unit
+    alSuspender: () -> Unit,
+    alReactivar: () -> Unit,
+    alVincularResponsable: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1007,10 +1353,12 @@ fun TarjetaAdminCentroItem(
                 }
 
                 // Insignia de Estado
-                val (colorBg, colorTxt) = when (centro.estado.lowercase()) {
-                    "aprobado" -> StatusGreenBg to StatusGreenText
-                    "rechazado" -> StatusRedBg to StatusRedText
-                    else -> AdoptOrangeLight to StatusOrangeText
+                val (colorBg, colorTxt, textoEstado) = when {
+                    centro.estado.equals("Pendiente", ignoreCase = true) -> Triple(AdoptOrangeLight, StatusOrangeText, "Pendiente")
+                    centro.estado.equals("Rechazado", ignoreCase = true) -> Triple(StatusRedBg, StatusRedText, "Rechazado")
+                    centro.estado.equals("Aprobado", ignoreCase = true) && centro.activo -> Triple(StatusGreenBg, StatusGreenText, "Aprobado")
+                    centro.estado.equals("Aprobado", ignoreCase = true) && !centro.activo && !centro.motivoSuspension.isNullOrBlank() -> Triple(StatusRedBg, StatusRedText, "Suspendido")
+                    else -> Triple(Color(0xFFE2E8F0), Color(0xFF475569), "Inactivo")
                 }
 
                 Surface(
@@ -1018,7 +1366,7 @@ fun TarjetaAdminCentroItem(
                     color = colorBg
                 ) {
                     Text(
-                        text = centro.estado,
+                        text = textoEstado,
                         color = colorTxt,
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.labelSmall,
@@ -1037,19 +1385,27 @@ fun TarjetaAdminCentroItem(
             ) {
                 Column(modifier = Modifier.padding(8.dp)) {
                     Text(
-                        text = "Responsable: ${centro.nombreResponsable ?: "Sin asignar"} · Correo: ${centro.correoResponsable ?: "N/A"}",
+                        text = "Responsable: ${centro.nombreResponsable ?: "Sin vincular"} · Correo: ${centro.correoResponsable ?: "N/A"}",
                         style = MaterialTheme.typography.labelSmall,
                         color = AdoptTextDark
                     )
                     Text(
-                        text = "Activo: ${if (centro.activo) "Sí (Visible)" else "No (Oculto)"} · Demostrativo: ${if (centro.esDemostrativo) "Sí" else "No"} · Mascotas: ${centro.totalMascotasPublicadas}",
+                        text = "Activo: ${if (centro.activo) "Sí (Visible)" else "No (Pausado)"} · Demostrativo: ${if (centro.esDemostrativo) "Sí" else "No"} · Mascotas: ${centro.totalMascotasPublicadas}",
                         style = MaterialTheme.typography.labelSmall,
                         color = AdoptTextSecondary
                     )
-                    if (!centro.motivoRechazo.isNullOrBlank()) {
+                    if (!centro.motivoSuspension.isNullOrBlank()) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Motivo de rechazo previo: ${centro.motivoRechazo}",
+                            text = "Motivo de suspensión: ${centro.motivoSuspension}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = StatusRedText,
+                            fontWeight = FontWeight.Medium
+                        )
+                    } else if (!centro.motivoRechazo.isNullOrBlank() && centro.estado.equals("Rechazado", ignoreCase = true)) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Motivo de rechazo: ${centro.motivoRechazo}",
                             style = MaterialTheme.typography.labelSmall,
                             color = StatusRedText,
                             fontWeight = FontWeight.Medium
@@ -1065,7 +1421,7 @@ fun TarjetaAdminCentroItem(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                if (!centro.estado.equals("Aprobado", ignoreCase = true)) {
+                if (centro.estado.equals("Pendiente", ignoreCase = true)) {
                     Button(
                         onClick = alAprobar,
                         enabled = !estaOperando,
@@ -1075,9 +1431,7 @@ fun TarjetaAdminCentroItem(
                     ) {
                         Text("Aprobar", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
-                }
 
-                if (!centro.estado.equals("Rechazado", ignoreCase = true)) {
                     OutlinedButton(
                         onClick = alRechazar,
                         enabled = !estaOperando,
@@ -1089,33 +1443,39 @@ fun TarjetaAdminCentroItem(
                     }
                 }
 
-                if (centro.activo) {
-                    OutlinedButton(
-                        onClick = alDesactivar,
-                        enabled = !estaOperando,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("Desactivar", fontSize = 11.sp)
-                    }
-                } else {
-                    OutlinedButton(
-                        onClick = alActivar,
-                        enabled = !estaOperando,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("Activar", fontSize = 11.sp)
+                if (centro.estado.equals("Aprobado", ignoreCase = true)) {
+                    if (centro.activo) {
+                        OutlinedButton(
+                            onClick = alSuspender,
+                            enabled = !estaOperando,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("Suspender", fontSize = 11.sp)
+                        }
+                    } else {
+                        Button(
+                            onClick = alReactivar,
+                            enabled = !estaOperando,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = AdoptTeal)
+                        ) {
+                            Text("Reactivar", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
 
-                OutlinedButton(
-                    onClick = alAsignarPropietario,
-                    enabled = !estaOperando,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("Asignar", fontSize = 11.sp)
+                if (centro.usuarioId == null) {
+                    OutlinedButton(
+                        onClick = alVincularResponsable,
+                        enabled = !estaOperando,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Vincular", fontSize = 11.sp)
+                    }
                 }
             }
         }

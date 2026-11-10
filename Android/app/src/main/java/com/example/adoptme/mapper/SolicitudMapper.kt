@@ -38,6 +38,7 @@ fun SolicitudResponseDto.toDomain(): AdoptionRequest {
         previousExperience = this.previousExperience?.takeIf { it != "null" } ?: "",
         reason = this.reason?.takeIf { it != "null" } ?: "",
         status = if (this.status.isNullOrBlank() || this.status == "null") "Pendiente" else this.status,
-        id = this.id
+        id = this.id,
+        observacion = this.observacion?.takeIf { it != "null" }
     )
 }

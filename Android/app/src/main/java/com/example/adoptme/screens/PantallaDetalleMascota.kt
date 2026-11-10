@@ -68,11 +68,10 @@ fun PantallaDetalleMascota(
             onClick = volver
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_arrow_back),
+                Image(
+                    painter = painterResource(id = R.drawable.flecha_izquierda),
                     contentDescription = "Volver",
-                    modifier = Modifier.padding(end = 4.dp).size(18.dp),
-                    tint = MaterialTheme.colorScheme.primary
+                    modifier = Modifier.padding(end = 6.dp).size(22.dp)
                 )
                 Text(
                     text = "Volver",

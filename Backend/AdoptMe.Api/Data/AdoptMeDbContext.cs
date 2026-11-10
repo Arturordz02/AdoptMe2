@@ -19,6 +19,8 @@ namespace AdoptMe.Api.Data
 
         public DbSet<Centro> Centros { get; set; }
 
+        public DbSet<CentroApelacion> CentrosApelaciones { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -68,6 +70,12 @@ namespace AdoptMe.Api.Data
                       .HasForeignKey(c => c.RevisadoPorUsuarioId)
                       .OnDelete(DeleteBehavior.SetNull);
 
+                // Relación con Administrador que suspende: SetNull si el admin fuera eliminado
+                entity.HasOne(c => c.SuspendidoPorAdmin)
+                      .WithMany()
+                      .HasForeignKey(c => c.SuspendidoPorAdminId)
+                      .OnDelete(DeleteBehavior.SetNull);
+
                 // Índice único parcial para UsuarioId no nulo
                 entity.HasIndex(c => c.UsuarioId)
                       .IsUnique()
@@ -87,6 +95,31 @@ namespace AdoptMe.Api.Data
                       .OnDelete(DeleteBehavior.SetNull);
 
                 entity.HasIndex(m => m.CentroId);
+            });
+
+            modelBuilder.Entity<CentroApelacion>(entity =>
+            {
+                entity.ToTable("CentrosApelaciones");
+
+                entity.HasKey(a => a.Id);
+
+                entity.HasOne(a => a.Centro)
+                      .WithMany()
+                      .HasForeignKey(a => a.CentroId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(a => a.RevisadoPorAdmin)
+                      .WithMany()
+                      .HasForeignKey(a => a.RevisadoPorAdminId)
+                      .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasIndex(a => a.CentroId);
+                entity.HasIndex(a => a.Estado);
+
+                entity.HasIndex(a => a.CentroId)
+                      .HasFilter("\"Estado\" = 'Pendiente'")
+                      .IsUnique()
+                      .HasDatabaseName("UX_CentrosApelaciones_Centro_Pendiente");
             });
         }
     }

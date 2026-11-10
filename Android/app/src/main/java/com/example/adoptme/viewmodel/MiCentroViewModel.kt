@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.adoptme.api.RetrofitClient
 import com.example.adoptme.model.ActualizarMiCentroRequest
+import com.example.adoptme.model.CentroApelacionDto
 import com.example.adoptme.model.CentroPropietarioDto
+import com.example.adoptme.model.CrearApelacionRequest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,6 +30,9 @@ class MiCentroViewModel : ViewModel() {
     private val _estaOperando = MutableStateFlow(false)
     val estaOperando: StateFlow<Boolean> = _estaOperando.asStateFlow()
 
+    private val _apelacionPendiente = MutableStateFlow<CentroApelacionDto?>(null)
+    val apelacionPendiente: StateFlow<CentroApelacionDto?> = _apelacionPendiente.asStateFlow()
+
     fun cargarMiCentro() {
         _uiState.value = MiCentroUiState.Cargando
         viewModelScope.launch {
@@ -39,6 +44,11 @@ class MiCentroViewModel : ViewModel() {
                     // Sincronizar en Preferencias
                     RetrofitClient.preferencias?.actualizarEstadoCentro(centro.estado, centro.activo)
                     RetrofitClient.preferencias?.actualizarCentroId(centro.id)
+
+                    // Si está suspendido, verificar automáticamente si tiene apelación en trámite
+                    if (!centro.activo && !centro.motivoSuspension.isNullOrBlank()) {
+                        consultarApelacionPendiente()
+                    }
                 } else {
                     val codigo = respuesta.code()
                     val cuerpoError = respuesta.errorBody()?.string()
@@ -171,6 +181,58 @@ class MiCentroViewModel : ViewModel() {
                 }
             } catch (e: Exception) {
                 onResultado(false, e.localizedMessage ?: "Fallo al enviar la imagen.", null)
+            } finally {
+                _estaOperando.value = false
+            }
+        }
+    }
+
+    fun consultarApelacionPendiente() {
+        viewModelScope.launch {
+            try {
+                val respuesta = RetrofitClient.centrosApi.obtenerApelacionPendiente()
+                if (respuesta.isSuccessful && respuesta.body() != null) {
+                    _apelacionPendiente.value = respuesta.body()
+                } else {
+                    _apelacionPendiente.value = null
+                }
+            } catch (_: Exception) {
+                // Silencioso o mantener estado previo ante desconexión
+            }
+        }
+    }
+
+    fun enviarApelacion(
+        motivo: String,
+        onResultado: (exito: Boolean, mensaje: String) -> Unit
+    ) {
+        val motivoLimpio = motivo.trim()
+        if (motivoLimpio.length < 10) {
+            onResultado(false, "El motivo de la apelación debe contener al menos 10 caracteres explicativos.")
+            return
+        }
+
+        _estaOperando.value = true
+        viewModelScope.launch {
+            try {
+                val respuesta = RetrofitClient.centrosApi.crearApelacion(CrearApelacionRequest(motivoLimpio))
+                if (respuesta.isSuccessful && respuesta.body() != null) {
+                    _apelacionPendiente.value = respuesta.body()
+                    cargarMiCentro()
+                    onResultado(true, "Apelación enviada correctamente. Se encuentra en evaluación administrativa.")
+                } else {
+                    val cuerpoError = respuesta.errorBody()?.string()
+                    var mensaje = "No se pudo registrar la apelación (${respuesta.code()})."
+                    if (!cuerpoError.isNullOrBlank()) {
+                        try {
+                            val json = JSONObject(cuerpoError)
+                            if (json.has("mensaje")) mensaje = json.getString("mensaje")
+                        } catch (_: Exception) { }
+                    }
+                    onResultado(false, mensaje)
+                }
+            } catch (e: Exception) {
+                onResultado(false, e.localizedMessage ?: "Error de red al enviar la apelación.")
             } finally {
                 _estaOperando.value = false
             }

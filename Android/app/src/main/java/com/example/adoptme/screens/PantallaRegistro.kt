@@ -837,20 +837,45 @@ fun PantallaRegistro(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Selector de Coordenadas en Mapa
-                    OutlinedButton(
-                        onClick = {
-                            mostrarDialogoExplicacionUbicacion = true
-                        },
+                    // Selector de Coordenadas en Mapa con Jerarquía Visual
+                    Surface(
                         shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            if (latitudCentro != null && longitudCentro != null)
-                                "📍 Coordenadas: ${String.format(java.util.Locale.US, "%.4f, %.4f", latitudCentro, longitudCentro)}"
-                            else
-                                "📍 Fijar ubicación en mapa (opcional)"
-                        )
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "📍 Ubicación geográfica",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = if (latitudCentro != null && longitudCentro != null)
+                                            String.format(java.util.Locale.US, "Coordenadas fijadas: %.4f, %.4f", latitudCentro, longitudCentro)
+                                        else
+                                            "Selecciona en el mapa para autocompletar dirección y distrito.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                TextButton(
+                                    onClick = { mostrarDialogoExplicacionUbicacion = true }
+                                ) {
+                                    Text(
+                                        text = if (latitudCentro != null) "Cambiar" else "Abrir mapa",
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -1094,6 +1119,19 @@ fun PantallaRegistro(
         DialogoSelectorMapa(
             latitudInicial = latitudCentro,
             longitudInicial = longitudCentro,
+            alConfirmarDetallado = { lat, lon, res ->
+                latitudCentro = lat
+                longitudCentro = lon
+                if (res.direccionCompleta.isNotBlank() && !res.direccionCompleta.startsWith("Coordenadas:")) {
+                    direccionCentro = res.direccionCompleta
+                    if (errorDireccionCentro.isNotEmpty()) errorDireccionCentro = ""
+                }
+                if (res.distrito.isNotBlank()) {
+                    distritoCentro = res.distrito
+                    if (errorDistritoCentro.isNotEmpty()) errorDistritoCentro = ""
+                }
+                mostrarSelectorMapa = false
+            },
             alConfirmar = { lat, lon, dist ->
                 latitudCentro = lat
                 longitudCentro = lon
