@@ -41,9 +41,27 @@ object RetrofitClient {
     private val client = OkHttpClient.Builder()
         .connectTimeout(60, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
         .addInterceptor(authInterceptor) // <- Inyectamos el JWT aquí
         .addInterceptor(logging)
         .build()
+
+    /**
+     * Resuelve un mensaje descriptivo y amigable ante problemas de red o cold start en Render.
+     */
+    fun resolverMensajeErrorServidor(e: Throwable): String {
+        val esTimeoutOArranque = e is java.net.SocketTimeoutException ||
+            e is java.util.concurrent.TimeoutException ||
+            e is java.net.ConnectException ||
+            e.message?.contains("timeout", ignoreCase = true) == true ||
+            e.message?.contains("failed to connect", ignoreCase = true) == true ||
+            e.message?.contains("connection refused", ignoreCase = true) == true
+        return if (esTimeoutOArranque) {
+            "El servidor está iniciando. Intenta nuevamente en unos segundos."
+        } else {
+            "No se pudo conectar con el servidor. Revisa tu conexión a Internet e inténtalo nuevamente."
+        }
+    }
 
     @Volatile
     private var retrofitInstance: Retrofit = construirRetrofit(baseUrlActual)

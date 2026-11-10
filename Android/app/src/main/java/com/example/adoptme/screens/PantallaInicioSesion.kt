@@ -143,12 +143,15 @@ fun PantallaInicioSesion(
                     respuesta.code() == 401 -> {
                         mensajeError = "Correo o contraseña incorrectos."
                     }
+                    respuesta.code() in listOf(502, 503, 504) -> {
+                        mensajeError = "El servidor está iniciando. Intenta nuevamente en unos segundos."
+                    }
                     else -> {
                         mensajeError = "No se pudo iniciar sesión. Código: ${respuesta.code()}"
                     }
                 }
             } catch (e: Exception) {
-                mensajeError = "No se pudo conectar con el servidor. Revisa tu conexión a Internet e inténtalo nuevamente."
+                mensajeError = RetrofitClient.resolverMensajeErrorServidor(e)
             } finally {
                 iniciandoSesion = false
             }

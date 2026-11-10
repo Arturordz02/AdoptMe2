@@ -35,8 +35,12 @@ android {
         buildConfigField("String", "BASE_URL", "\"https://adoptme2.onrender.com/\"")
     }
 
+    // Opt-in explícito para desarrollo local con ASP.NET (-PusarBackendLocal=true). Por defecto false.
+    val usarBackendLocal = (project.findProperty("usarBackendLocal") as? String)?.toBoolean() ?: false
+
     buildTypes {
         release {
+            // En release siempre apunta a Render de producción y prohíbe flags/URLs de desarrollo
             buildConfigField("String", "BASE_URL", "\"https://adoptme2.onrender.com/\"")
             buildConfigField("Boolean", "PERMITIR_URL_DEV", "false")
             buildConfigField("String", "URL_LOCAL_DEV", "\"\"")
@@ -45,9 +49,17 @@ android {
             }
         }
         debug {
-            buildConfigField("String", "BASE_URL", "\"https://adoptme2.onrender.com/\"")
-            buildConfigField("Boolean", "PERMITIR_URL_DEV", "true")
-            buildConfigField("String", "URL_LOCAL_DEV", "\"http://127.0.0.1:5217/\"")
+            if (usarBackendLocal) {
+                // Modo explícito local: solo activo cuando se compila con -PusarBackendLocal=true
+                buildConfigField("String", "BASE_URL", "\"http://127.0.0.1:5217/\"")
+                buildConfigField("Boolean", "PERMITIR_URL_DEV", "true")
+                buildConfigField("String", "URL_LOCAL_DEV", "\"http://127.0.0.1:5217/\"")
+            } else {
+                // Modo predeterminado para Android Studio Run: consume Render en producción sin servicios locales
+                buildConfigField("String", "BASE_URL", "\"https://adoptme2.onrender.com/\"")
+                buildConfigField("Boolean", "PERMITIR_URL_DEV", "false")
+                buildConfigField("String", "URL_LOCAL_DEV", "\"\"")
+            }
         }
     }
     compileOptions {
@@ -57,6 +69,15 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+}
+
+androidComponents {
+    beforeVariants(selector().withBuildType("release")) { variantBuilder ->
+        (variantBuilder as? com.android.build.api.variant.HasHostTestsBuilder)
+            ?.hostTests
+            ?.get(com.android.build.api.variant.HostTestBuilder.UNIT_TEST_TYPE)
+            ?.enable = true
     }
 }
 
