@@ -1,5 +1,6 @@
 package com.example.adoptme.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -42,10 +43,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.adoptme.R
 import com.example.adoptme.model.MensajeChat
 
 @Composable
@@ -99,18 +102,16 @@ fun PantallaChat(
                     IconButton(
                         onClick = volver,
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {
-                        Text(
-                            text = "←",
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
+                        Image(
+                            painter = painterResource(id = R.drawable.flecha_izquierda),
+                            contentDescription = "Volver",
+                            modifier = Modifier.size(22.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                 }
 
                 Box(
