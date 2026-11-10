@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.example.adoptme.api.RetrofitClient
 import com.example.adoptme.model.AsignarPropietarioCentroRequest
 import com.example.adoptme.model.CentroAdminDto
+import com.example.adoptme.model.CentroApelacionDto
 import com.example.adoptme.model.RechazarCentroRequest
+import com.example.adoptme.model.ResolverApelacionRequest
 import com.example.adoptme.model.SuspenderCentroRequest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +29,9 @@ class AdminCentrosViewModel : ViewModel() {
 
     private val _estaOperando = MutableStateFlow(false)
     val estaOperando: StateFlow<Boolean> = _estaOperando.asStateFlow()
+
+    private val _apelacionesPendientes = MutableStateFlow<List<CentroApelacionDto>>(emptyList())
+    val apelacionesPendientes: StateFlow<List<CentroApelacionDto>> = _apelacionesPendientes.asStateFlow()
 
     private var ultimoFiltroEstado: String? = null
     private var ultimoFiltroActivo: Boolean? = null
@@ -66,6 +71,71 @@ class AdminCentrosViewModel : ViewModel() {
 
     fun refrescar() {
         cargarCentros(ultimoFiltroEstado, ultimoFiltroActivo, ultimoQuery)
+        cargarApelaciones()
+    }
+
+    fun cargarApelaciones() {
+        viewModelScope.launch {
+            try {
+                val respuesta = RetrofitClient.centrosApi.listarApelacionesAdmin("Pendiente")
+                if (respuesta.isSuccessful && respuesta.body() != null) {
+                    _apelacionesPendientes.value = respuesta.body()!!
+                } else {
+                    _apelacionesPendientes.value = emptyList()
+                }
+            } catch (_: Exception) {
+                _apelacionesPendientes.value = emptyList()
+            }
+        }
+    }
+
+    fun aprobarApelacion(id: Int, onResultado: (Boolean, String) -> Unit) {
+        _estaOperando.value = true
+        viewModelScope.launch {
+            try {
+                val respuesta = RetrofitClient.centrosApi.aprobarApelacion(id)
+                if (respuesta.isSuccessful) {
+                    refrescar()
+                    onResultado(true, "Apelación aprobada y centro reactivado exitosamente.")
+                } else {
+                    val msg = procesarErrorHttp(respuesta.code(), respuesta.errorBody()?.string())
+                    onResultado(false, msg)
+                }
+            } catch (e: Exception) {
+                onResultado(false, e.localizedMessage ?: "Fallo al comunicar resolución de apelación.")
+            } finally {
+                _estaOperando.value = false
+            }
+        }
+    }
+
+    fun rechazarApelacion(id: Int, respuestaAdmin: String, onResultado: (Boolean, String) -> Unit) {
+        val respuestaLimpia = respuestaAdmin.trim()
+        if (respuestaLimpia.length < 5) {
+            onResultado(false, "El motivo de rechazo debe contener al menos 5 caracteres explicativos.")
+            return
+        }
+
+        _estaOperando.value = true
+        viewModelScope.launch {
+            try {
+                val respuesta = RetrofitClient.centrosApi.rechazarApelacion(
+                    id,
+                    ResolverApelacionRequest(respuestaLimpia)
+                )
+                if (respuesta.isSuccessful) {
+                    refrescar()
+                    onResultado(true, "Apelación rechazada formalmente.")
+                } else {
+                    val msg = procesarErrorHttp(respuesta.code(), respuesta.errorBody()?.string())
+                    onResultado(false, msg)
+                }
+            } catch (e: Exception) {
+                onResultado(false, e.localizedMessage ?: "Error al rechazar apelación.")
+            } finally {
+                _estaOperando.value = false
+            }
+        }
     }
 
     fun aprobarCentro(id: Int, onResultado: (Boolean, String) -> Unit) {

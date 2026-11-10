@@ -106,6 +106,7 @@ fun PantallaCentro(
     cerrarSesion: () -> Unit,
     idCentroActualInicial: Int = 0,
     onPublicarMascota: () -> Unit = {},
+    onVerPublicaciones: () -> Unit = {},
     onVerEstadoPendiente: () -> Unit = {},
     mascotasTotales: List<Pet> = emptyList(),
     viewModel: MiCentroViewModel = remember { MiCentroViewModel() },
@@ -510,6 +511,7 @@ fun PantallaCentro(
                                 titulo = "Publicaciones",
                                 valor = "${mascotasDelCentro.size}",
                                 icono = "🐾",
+                                onClick = onVerPublicaciones,
                                 modifier = Modifier.weight(1f)
                             )
                             TarjetaMetricaCentro(
@@ -856,10 +858,11 @@ private fun TarjetaMetricaCentro(
     valor: String,
     icono: String,
     resaltar: Boolean = false,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier,
+        modifier = if (onClick != null) modifier.clickable { onClick() } else modifier,
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (resaltar) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)

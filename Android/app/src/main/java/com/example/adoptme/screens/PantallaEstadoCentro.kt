@@ -26,6 +26,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -53,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.adoptme.R
 import com.example.adoptme.model.ActualizarMiCentroRequest
+import com.example.adoptme.model.CentroApelacionDto
 import com.example.adoptme.model.CentroPropietarioDto
 import com.example.adoptme.viewmodel.MiCentroUiState
 import com.example.adoptme.viewmodel.MiCentroViewModel
@@ -68,11 +70,14 @@ fun PantallaEstadoCentro(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val estaOperando by viewModel.estaOperando.collectAsState()
+    val apelacionPendiente by viewModel.apelacionPendiente.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     var mostrarDialogoReenvio by remember { mutableStateOf(false) }
     var mostrarDialogoEdicion by remember { mutableStateOf(false) }
+    var mostrarDialogoApelacion by remember { mutableStateOf(false) }
+    var motivoApelacion by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         viewModel.cargarMiCentro()
@@ -148,12 +153,86 @@ fun PantallaEstadoCentro(
                 is MiCentroUiState.Exito -> {
                     ContenidoCentroPorEstado(
                         centro = state.centro,
+                        apelacionPendiente = apelacionPendiente,
                         estaOperando = estaOperando,
                         onVerificarEstado = { viewModel.cargarMiCentro() },
                         onSolicitarReenvio = { mostrarDialogoReenvio = true },
                         onEditarPerfil = { mostrarDialogoEdicion = true },
+                        onApelar = {
+                            motivoApelacion = ""
+                            mostrarDialogoApelacion = true
+                        },
                         onCerrarSesion = onCerrarSesion
                     )
+
+                    if (mostrarDialogoApelacion) {
+                        AlertDialog(
+                            onDismissRequest = {
+                                mostrarDialogoApelacion = false
+                                motivoApelacion = ""
+                            },
+                            title = {
+                                Text(
+                                    text = "Apelar Suspensión del Centro",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp
+                                )
+                            },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(
+                                        text = "Explica detalladamente las correcciones realizadas o fundamentos para solicitar la reactivación operativa:",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    OutlinedTextField(
+                                        value = motivoApelacion,
+                                        onValueChange = { motivoApelacion = it },
+                                        label = { Text("Motivo de la apelación *") },
+                                        placeholder = { Text("Mínimo 10 caracteres explicativos...") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        minLines = 3,
+                                        maxLines = 6,
+                                        supportingText = {
+                                            Text(
+                                                text = "${motivoApelacion.trim().length} / 10 caracteres mín.",
+                                                color = if (motivoApelacion.trim().length >= 10) Color(0xFF047857) else MaterialTheme.colorScheme.error,
+                                                style = MaterialTheme.typography.labelSmall
+                                            )
+                                        }
+                                    )
+                                }
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        val motivoFinal = motivoApelacion.trim()
+                                        if (motivoFinal.length >= 10) {
+                                            mostrarDialogoApelacion = false
+                                            viewModel.enviarApelacion(motivoFinal) { exito, msg ->
+                                                scope.launch {
+                                                    snackbarHostState.showSnackbar(msg)
+                                                }
+                                            }
+                                            motivoApelacion = ""
+                                        }
+                                    },
+                                    enabled = !estaOperando && motivoApelacion.trim().length >= 10,
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                ) {
+                                    Text("Enviar Apelación", fontWeight = FontWeight.Bold)
+                                }
+                            },
+                            dismissButton = {
+                                OutlinedButton(onClick = {
+                                    mostrarDialogoApelacion = false
+                                    motivoApelacion = ""
+                                }) {
+                                    Text("Cancelar")
+                                }
+                            }
+                        )
+                    }
 
                     if (mostrarDialogoReenvio) {
                         AlertDialog(
@@ -215,10 +294,12 @@ fun PantallaEstadoCentro(
 @Composable
 private fun ContenidoCentroPorEstado(
     centro: CentroPropietarioDto,
+    apelacionPendiente: CentroApelacionDto? = null,
     estaOperando: Boolean,
     onVerificarEstado: () -> Unit,
     onSolicitarReenvio: () -> Unit,
     onEditarPerfil: () -> Unit,
+    onApelar: () -> Unit,
     onCerrarSesion: () -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -261,16 +342,18 @@ private fun ContenidoCentroPorEstado(
                     onReenviar = onSolicitarReenvio
                 )
             }
-            centro.estado.equals("Aprobado", ignoreCase = true) && !centro.activo -> {
-                if (!centro.motivoSuspension.isNullOrBlank()) {
-                    TarjetaEstadoSuspendido(
-                        centro = centro
-                    )
-                } else {
-                    TarjetaEstadoInactivo(
-                        centro = centro
-                    )
-                }
+            centro.estado.equals("Suspendido", ignoreCase = true) || (!centro.activo && !centro.motivoSuspension.isNullOrBlank()) -> {
+                TarjetaEstadoSuspendido(
+                    centro = centro,
+                    apelacionPendiente = apelacionPendiente,
+                    estaOperando = estaOperando,
+                    onApelar = onApelar
+                )
+            }
+            !centro.activo -> {
+                TarjetaEstadoInactivo(
+                    centro = centro
+                )
             }
             else -> {
                 TarjetaEstadoGeneral(centro = centro)
@@ -487,7 +570,10 @@ private fun TarjetaEstadoRechazado(
 
 @Composable
 private fun TarjetaEstadoSuspendido(
-    centro: CentroPropietarioDto
+    centro: CentroPropietarioDto,
+    apelacionPendiente: CentroApelacionDto? = null,
+    estaOperando: Boolean = false,
+    onApelar: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -527,8 +613,9 @@ private fun TarjetaEstadoSuspendido(
             }
 
             Text(
-                text = "Tu centro cuenta con aprobación institucional, pero sus operaciones se encuentran temporalmente suspendidas por el Administrador:",
+                text = "Tu cuenta de Centro se encuentra temporalmente suspendida por el Administrador:",
                 style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
 
@@ -563,11 +650,68 @@ private fun TarjetaEstadoSuspendido(
                 }
             }
 
-            Text(
-                text = "Durante la suspensión, tus publicaciones permanecen en pausa y no es posible registrar nuevas mascotas. Comunícate con la administración para consultar los requisitos de reactivación.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            // Consecuencias operativas claras
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+                ),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Consecuencias operativas de la suspensión:",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text("• Tus mascotas no son visibles en el catálogo público.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("• No puedes publicar nuevas mascotas.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("• No puedes aprobar solicitudes de adopción.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            // Sección de apelación
+            if (apelacionPendiente != null) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFF59E0B).copy(alpha = 0.15f)
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "⏳ Apelación en revisión por administración",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color(0xFFB45309)
+                        )
+                        if (!apelacionPendiente.fechaCreacion.isNullOrBlank()) {
+                            Text(
+                                text = "Enviada el: ${apelacionPendiente.fechaCreacion.substringBefore("T")}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            text = "Fundamento: ${apelacionPendiente.motivoApelacion}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            } else {
+                Button(
+                    onClick = onApelar,
+                    enabled = !estaOperando,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text("Apelar suspensión", fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 }

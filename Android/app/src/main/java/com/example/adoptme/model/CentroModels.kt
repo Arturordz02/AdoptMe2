@@ -208,3 +208,35 @@ fun CentroPublicoDto.toCentroAdopcion(): CentroAdopcion {
         esDemostrativo = esDemostrativo
     )
 }
+
+/**
+ * Solicitud de apelación formal de suspensión enviada por el centro (POST /api/centros/mi-centro/apelaciones).
+ */
+data class CrearApelacionRequest(
+    @SerializedName("motivoApelacion") val motivoApelacion: String
+)
+
+/**
+ * Resolución administrativa de una apelación (PUT /api/admin/centros/apelaciones/{id}/rechazar).
+ */
+data class ResolverApelacionRequest(
+    @SerializedName("respuestaAdmin") val respuestaAdmin: String? = null
+)
+
+/**
+ * DTO de apelación institucional con trazabilidad de revisión.
+ */
+data class CentroApelacionDto(
+    @SerializedName("id") val id: Int = 0,
+    @SerializedName("centroId") val centroId: Int = 0,
+    @SerializedName("centroNombre") val centroNombre: String = "",
+    @SerializedName("motivoApelacion") val motivoApelacion: String = "",
+    @SerializedName("estado") val estado: String = "Pendiente",
+    @SerializedName("fechaCreacion") val fechaCreacion: String? = null,
+    @SerializedName("fechaRevision") val fechaRevision: String? = null,
+    @SerializedName("revisadoPorAdminId") val revisadoPorAdminId: Int? = null,
+    @SerializedName("revisadoPorAdminNombre") val revisadoPorAdminNombre: String? = null,
+    @SerializedName("respuestaAdmin") val respuestaAdmin: String? = null,
+    @SerializedName("motivoSuspensionOriginal") val motivoSuspensionOriginal: String? = null,
+    @SerializedName("fechaSuspensionOriginal") val fechaSuspensionOriginal: String? = null
+)

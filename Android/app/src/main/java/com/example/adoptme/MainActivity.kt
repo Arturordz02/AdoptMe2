@@ -36,6 +36,7 @@ import com.example.adoptme.repository.AppStorage
 import com.example.adoptme.repository.MascotaStorage
 import com.example.adoptme.repository.normalizarCorreoUsuario
 import com.example.adoptme.repository.sincronizarPublicacionesUsuario
+import com.example.adoptme.screens.MisPublicacionesScreen
 import com.example.adoptme.screens.PantallaAdministrador
 import com.example.adoptme.screens.PantallaCentro
 import com.example.adoptme.screens.PantallaChat
@@ -83,6 +84,7 @@ class MainActivity : ComponentActivity() {
             var centroActivoFlag by remember { mutableStateOf(preferencias.esCentroActivoSesionActiva()) }
             var centroDemostrativoFlag by remember { mutableStateOf(preferencias.esCentroDemostrativoSesionActiva()) }
             var mostrarPublicarMascotaCentro by remember { mutableStateOf(false) }
+            var mostrarMisPublicacionesCentro by remember { mutableStateOf(false) }
 
             val usuariosRegistrados = remember { mutableStateListOf<UsuarioRegistrado>() }
             var usuarioActualSesion by remember { mutableStateOf<UsuarioRegistrado?>(null) }
@@ -690,30 +692,71 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    val manejarRechazar: (AdoptionRequest) -> Unit = { solicitud ->
-                        val indice = solicitudesAdopcion.indexOf(solicitud)
-                        val solicitudRechazada = solicitud.copy(status = "Rechazada")
-                        if (indice != -1) {
-                            solicitudesAdopcion[indice] = solicitudRechazada
-                        }
-                        almacenamientoApp.actualizarEstadoSolicitud(solicitudRechazada)
+                    val manejarRechazar: (AdoptionRequest, String) -> Unit = { solicitud, motivo ->
+                        if (solicitud.id > 0) {
+                            if (procesandoSolicitudIds.contains(solicitud.id)) {
+                                Toast.makeText(applicationContext, "Operación en curso, por favor espere.", Toast.LENGTH_SHORT).show()
+                            } else {
+                                procesandoSolicitudIds.add(solicitud.id)
+                                coroutineScope.launch {
+                                    try {
+                                        val reqDto = ActualizarEstadoSolicitudRequestDto(
+                                            status = "Rechazada",
+                                            observacion = motivo
+                                        )
+                                        val respuesta = RetrofitClient.solicitudesApi.actualizarEstadoSolicitud(solicitud.id, reqDto)
+                                        if (respuesta.isSuccessful && respuesta.body() != null) {
+                                            val solicitudActualizada = respuesta.body()!!.toDomain()
+                                            val indice = solicitudesAdopcion.indexOfFirst { it.id == solicitud.id }
+                                            if (indice != -1) {
+                                                solicitudesAdopcion[indice] = solicitudActualizada
+                                            }
+                                            almacenamientoApp.actualizarEstadoSolicitud(solicitudActualizada)
+                                            recargarSolicitudesTrigger++
+                                            Toast.makeText(applicationContext, "Solicitud rechazada en el servidor.", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            val errorMsg = when (respuesta.code()) {
+                                                400 -> "El motivo de rechazo debe contener al menos 5 caracteres."
+                                                401 -> "Sesión expirada o no autorizada."
+                                                403 -> "Acceso denegado: se requieren permisos de Administrador."
+                                                404 -> "La solicitud no fue encontrada en el servidor."
+                                                409 -> "La solicitud ya está en estado terminal y no puede modificarse."
+                                                else -> "Error en el servidor al rechazar (${respuesta.code()})."
+                                            }
+                                            Toast.makeText(applicationContext, errorMsg, Toast.LENGTH_LONG).show()
+                                        }
+                                    } catch (e: Exception) {
+                                        Toast.makeText(applicationContext, "Error de red al conectar con el servidor.", Toast.LENGTH_LONG).show()
+                                    } finally {
+                                        procesandoSolicitudIds.remove(solicitud.id)
+                                    }
+                                }
+                            }
+                        } else {
+                            val indice = solicitudesAdopcion.indexOf(solicitud)
+                            val solicitudRechazada = solicitud.copy(status = "Rechazada", observacion = motivo)
+                            if (indice != -1) {
+                                solicitudesAdopcion[indice] = solicitudRechazada
+                            }
+                            almacenamientoApp.actualizarEstadoSolicitud(solicitudRechazada)
 
-                        if (solicitud.email.isNotBlank()) {
-                            almacenamientoApp.agregarNotificacion(
-                                solicitud.email,
-                                NotificationItem(
-                                    title = "Solicitud actualizada",
-                                    message = "Tu solicitud para adoptar a ${solicitud.petName} fue rechazada."
+                            if (solicitud.email.isNotBlank()) {
+                                almacenamientoApp.agregarNotificacion(
+                                    solicitud.email,
+                                    NotificationItem(
+                                        title = "Solicitud rechazada",
+                                        message = "Tu solicitud para adoptar a ${solicitud.petName} fue rechazada. Motivo: $motivo"
+                                    )
                                 )
-                            )
-                        }
+                            }
 
-                        val notifAdmin = NotificationItem(
-                            title = "Solicitud rechazada",
-                            message = "Rechazaste la solicitud para adoptar a ${solicitud.petName}."
-                        )
-                        notificaciones.add(0, notifAdmin)
-                        almacenamientoApp.guardarNotificaciones("admin@adoptme.com", notificaciones)
+                            val notifAdmin = NotificationItem(
+                                title = "Solicitud rechazada",
+                                message = "Rechazaste la solicitud para adoptar a ${solicitud.petName}. Motivo: $motivo"
+                            )
+                            notificaciones.add(0, notifAdmin)
+                            almacenamientoApp.guardarNotificaciones("admin@adoptme.com", notificaciones)
+                        }
                     }
 
                     // 8. Handler de envío de mensajes de chat
@@ -749,6 +792,14 @@ class MainActivity : ComponentActivity() {
                             ultimoTexto = textoLimpio,
                             fecha = fechaActual
                         )
+                        almacenamientoApp.registrarConversacionAdoptante(
+                            correoAdoptante = correoAdoptante,
+                            idCentro = idCentroSeleccionado,
+                            nombreCentro = nombreCentroSeleccionado,
+                            correoCentro = correoCentroSeleccionado,
+                            ultimoTexto = textoLimpio,
+                            fecha = fechaActual
+                        )
 
                         // Respuesta simulada automática del centro: solo si emisor es adoptante y no existe aún respuesta del centro
                         if (!esCentro && mensajesChatActuales.none { it.esDelCentro }) {
@@ -776,6 +827,14 @@ class MainActivity : ComponentActivity() {
                                 ultimoTexto = respuestaCentro.texto,
                                 fecha = fechaActual
                             )
+                            almacenamientoApp.registrarConversacionAdoptante(
+                                correoAdoptante = correoAdoptante,
+                                idCentro = idCentroSeleccionado,
+                                nombreCentro = nombreCentroSeleccionado,
+                                correoCentro = correoCentroSeleccionado,
+                                ultimoTexto = respuestaCentro.texto,
+                                fecha = fechaActual
+                            )
                         }
                     }
 
@@ -796,6 +855,7 @@ class MainActivity : ComponentActivity() {
                         centroActivoFlag = false
                         centroDemostrativoFlag = false
                         mostrarPublicarMascotaCentro = false
+                        mostrarMisPublicacionesCentro = false
                         usuarioActualSesion = null
                         mascotaSeleccionada = null
                         mostrarPantallaAdopcion = false
@@ -957,12 +1017,27 @@ class MainActivity : ComponentActivity() {
                                         almacenamientoMascotas.guardarMascotas(mascotasPublicadas)
                                         recargarCatalogoTrigger++
                                         mostrarPublicarMascotaCentro = false
+                        mostrarMisPublicacionesCentro = false
                                     },
                                     volver = {
                                         mostrarPublicarMascotaCentro = false
+                        mostrarMisPublicacionesCentro = false
                                         estadoCentroActivo = preferencias.obtenerEstadoCentroSesionActiva()
                                         centroActivoFlag = preferencias.esCentroActivoSesionActiva()
                                     }
+                                )
+                            } else if (mostrarMisPublicacionesCentro) {
+                                val idCentroReal = idCentroActivo ?: idCentroSeleccionado
+                                val esSuspendido = !centroActivoFlag || estadoCentroActivo.equals("Suspendido", ignoreCase = true)
+                                val mascotasDelCentro = mascotas.filter {
+                                    it.centroId == idCentroReal || (it.creadoPorCorreo.isNotBlank() && it.creadoPorCorreo.equals(correoSesionActiva, ignoreCase = true))
+                                }
+                                MisPublicacionesScreen(
+                                    publicaciones = mascotasDelCentro,
+                                    volver = { mostrarMisPublicacionesCentro = false },
+                                    eliminar = manejarEliminarMascotaAdmin,
+                                    correoActual = correoSesionActiva,
+                                    esModoSoloLectura = esSuspendido
                                 )
                             } else if (chatAbiertoCentro) {
                                 PantallaChat(
@@ -999,6 +1074,9 @@ class MainActivity : ComponentActivity() {
                                     cerrarSesion = manejarCerrarSesion,
                                     onPublicarMascota = {
                                         mostrarPublicarMascotaCentro = true
+                                    },
+                                    onVerPublicaciones = {
+                                        mostrarMisPublicacionesCentro = true
                                     },
                                     onVerEstadoPendiente = {
                                         estadoCentroActivo = "Pendiente"

@@ -444,5 +444,161 @@ namespace AdoptMe.Api.Controllers
                 logoUrl = centro.LogoUrl
             });
         }
+
+        // POST: api/centros/mi-centro/apelaciones
+        // Registrar una apelación formal de suspensión operativa
+        [Authorize(Roles = "Centro,Admin")]
+        [HttpPost("mi-centro/apelaciones")]
+        public async Task<ActionResult<CentroApelacionDto>> CrearApelacion(
+            [FromBody] CrearApelacionDto dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var auth = await _authService.ValidarCentroAutenticadoAsync(User);
+            if (!auth.EsValido || auth.Centro == null)
+            {
+                return StatusCode(auth.CodigoError ?? 401, new { mensaje = auth.MensajeError });
+            }
+
+            var centro = auth.Centro;
+            bool estaSuspendido = !centro.Activo && !string.IsNullOrWhiteSpace(centro.MotivoSuspension);
+            if (!estaSuspendido)
+            {
+                return BadRequest(new
+                {
+                    mensaje = "Solo un centro en estado formalmente suspendido puede registrar una apelación."
+                });
+            }
+
+            bool tieneApelacionPendiente = await _context.CentrosApelaciones
+                .AnyAsync(a => a.CentroId == centro.Id && a.Estado == "Pendiente");
+
+            if (tieneApelacionPendiente)
+            {
+                return Conflict(new
+                {
+                    mensaje = "El centro ya cuenta con una apelación pendiente en evaluación administrativa."
+                });
+            }
+
+            string motivoLimpio = dto.MotivoApelacion?.Trim() ?? string.Empty;
+            if (motivoLimpio.Length < 10)
+            {
+                return BadRequest(new
+                {
+                    mensaje = "El motivo de la apelación debe contener al menos 10 caracteres explicativos."
+                });
+            }
+
+            var nuevaApelacion = new CentroApelacion
+            {
+                CentroId = centro.Id,
+                MotivoApelacion = motivoLimpio,
+                Estado = "Pendiente",
+                FechaCreacion = DateTime.UtcNow
+            };
+
+            _context.CentrosApelaciones.Add(nuevaApelacion);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Apelación #{ApelacionId} registrada exitosamente para Centro #{CentroId} ('{Nombre}').",
+                nuevaApelacion.Id, centro.Id, centro.Nombre);
+
+            return Ok(new CentroApelacionDto
+            {
+                Id = nuevaApelacion.Id,
+                CentroId = centro.Id,
+                CentroNombre = centro.Nombre,
+                MotivoApelacion = nuevaApelacion.MotivoApelacion,
+                Estado = nuevaApelacion.Estado,
+                FechaCreacion = nuevaApelacion.FechaCreacion,
+                MotivoSuspensionOriginal = centro.MotivoSuspension,
+                FechaSuspensionOriginal = centro.FechaSuspension
+            });
+        }
+
+        // GET: api/centros/mi-centro/apelacion-pendiente
+        // Consultar si el centro autenticado tiene una apelación actualmente en revisión
+        [Authorize(Roles = "Centro,Admin")]
+        [HttpGet("mi-centro/apelacion-pendiente")]
+        public async Task<ActionResult<CentroApelacionDto>> ObtenerApelacionPendiente()
+        {
+            var auth = await _authService.ValidarCentroAutenticadoAsync(User);
+            if (!auth.EsValido || auth.Centro == null)
+            {
+                return StatusCode(auth.CodigoError ?? 401, new { mensaje = auth.MensajeError });
+            }
+
+            var apelacion = await _context.CentrosApelaciones
+                .AsNoTracking()
+                .Include(a => a.Centro)
+                .Where(a => a.CentroId == auth.Centro.Id && a.Estado == "Pendiente")
+                .OrderByDescending(a => a.FechaCreacion)
+                .FirstOrDefaultAsync();
+
+            if (apelacion == null)
+            {
+                return NotFound(new
+                {
+                    mensaje = "No existen apelaciones pendientes de revisión para tu centro."
+                });
+            }
+
+            return Ok(new CentroApelacionDto
+            {
+                Id = apelacion.Id,
+                CentroId = apelacion.CentroId,
+                CentroNombre = apelacion.Centro?.Nombre ?? auth.Centro.Nombre,
+                MotivoApelacion = apelacion.MotivoApelacion,
+                Estado = apelacion.Estado,
+                FechaCreacion = apelacion.FechaCreacion,
+                FechaRevision = apelacion.FechaRevision,
+                RevisadoPorAdminId = apelacion.RevisadoPorAdminId,
+                RespuestaAdmin = apelacion.RespuestaAdmin,
+                MotivoSuspensionOriginal = auth.Centro.MotivoSuspension,
+                FechaSuspensionOriginal = auth.Centro.FechaSuspension
+            });
+        }
+
+        // GET: api/centros/mi-centro/apelaciones
+        // Historial completo de apelaciones del centro autenticado
+        [Authorize(Roles = "Centro,Admin")]
+        [HttpGet("mi-centro/apelaciones")]
+        public async Task<ActionResult<IEnumerable<CentroApelacionDto>>> ObtenerHistorialApelaciones()
+        {
+            var auth = await _authService.ValidarCentroAutenticadoAsync(User);
+            if (!auth.EsValido || auth.Centro == null)
+            {
+                return StatusCode(auth.CodigoError ?? 401, new { mensaje = auth.MensajeError });
+            }
+
+            var apelaciones = await _context.CentrosApelaciones
+                .AsNoTracking()
+                .Include(a => a.Centro)
+                .Include(a => a.RevisadoPorAdmin)
+                .Where(a => a.CentroId == auth.Centro.Id)
+                .OrderByDescending(a => a.FechaCreacion)
+                .Select(a => new CentroApelacionDto
+                {
+                    Id = a.Id,
+                    CentroId = a.CentroId,
+                    CentroNombre = a.Centro != null ? a.Centro.Nombre : auth.Centro.Nombre,
+                    MotivoApelacion = a.MotivoApelacion,
+                    Estado = a.Estado,
+                    FechaCreacion = a.FechaCreacion,
+                    FechaRevision = a.FechaRevision,
+                    RevisadoPorAdminId = a.RevisadoPorAdminId,
+                    RevisadoPorAdminNombre = a.RevisadoPorAdmin != null ? a.RevisadoPorAdmin.Nombre : null,
+                    RespuestaAdmin = a.RespuestaAdmin,
+                    MotivoSuspensionOriginal = auth.Centro.MotivoSuspension,
+                    FechaSuspensionOriginal = auth.Centro.FechaSuspension
+                })
+                .ToListAsync();
+
+            return Ok(apelaciones);
+        }
     }
 }

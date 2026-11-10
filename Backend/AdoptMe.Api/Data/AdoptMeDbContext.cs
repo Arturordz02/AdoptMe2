@@ -19,6 +19,8 @@ namespace AdoptMe.Api.Data
 
         public DbSet<Centro> Centros { get; set; }
 
+        public DbSet<CentroApelacion> CentrosApelaciones { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -93,6 +95,26 @@ namespace AdoptMe.Api.Data
                       .OnDelete(DeleteBehavior.SetNull);
 
                 entity.HasIndex(m => m.CentroId);
+            });
+
+            modelBuilder.Entity<CentroApelacion>(entity =>
+            {
+                entity.ToTable("CentrosApelaciones");
+
+                entity.HasKey(a => a.Id);
+
+                entity.HasOne(a => a.Centro)
+                      .WithMany()
+                      .HasForeignKey(a => a.CentroId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(a => a.RevisadoPorAdmin)
+                      .WithMany()
+                      .HasForeignKey(a => a.RevisadoPorAdminId)
+                      .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasIndex(a => a.CentroId);
+                entity.HasIndex(a => a.Estado);
             });
         }
     }

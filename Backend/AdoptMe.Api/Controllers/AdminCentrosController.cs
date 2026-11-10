@@ -502,5 +502,151 @@ namespace AdoptMe.Api.Controllers
                 return StatusCode(500, new { mensaje = "Ocurrió un error interno al vincular el responsable del centro." });
             }
         }
+
+        // GET: api/admin/centros/apelaciones
+        // Listar apelaciones presentadas por centros suspendidos (por defecto, Pendientes)
+        [HttpGet("apelaciones")]
+        public async Task<ActionResult<IEnumerable<CentroApelacionDto>>> ListarApelaciones(
+            [FromQuery] string? estado = "Pendiente")
+        {
+            var query = _context.CentrosApelaciones
+                .Include(a => a.Centro)
+                .Include(a => a.RevisadoPorAdmin)
+                .AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(estado) && !string.Equals(estado.Trim(), "Todos", StringComparison.OrdinalIgnoreCase))
+            {
+                string estNorm = estado.Trim().ToLowerInvariant();
+                query = query.Where(a => a.Estado.ToLower() == estNorm);
+            }
+
+            var apelaciones = await query
+                .OrderByDescending(a => a.FechaCreacion)
+                .Select(a => new CentroApelacionDto
+                {
+                    Id = a.Id,
+                    CentroId = a.CentroId,
+                    CentroNombre = a.Centro != null ? a.Centro.Nombre : "Centro no identificado",
+                    MotivoApelacion = a.MotivoApelacion,
+                    Estado = a.Estado,
+                    FechaCreacion = a.FechaCreacion,
+                    FechaRevision = a.FechaRevision,
+                    RevisadoPorAdminId = a.RevisadoPorAdminId,
+                    RevisadoPorAdminNombre = a.RevisadoPorAdmin != null ? a.RevisadoPorAdmin.Nombre : null,
+                    RespuestaAdmin = a.RespuestaAdmin,
+                    MotivoSuspensionOriginal = a.Centro != null ? a.Centro.MotivoSuspension : null,
+                    FechaSuspensionOriginal = a.Centro != null ? a.Centro.FechaSuspension : null
+                })
+                .ToListAsync();
+
+            return Ok(apelaciones);
+        }
+
+        // PUT: api/admin/centros/apelaciones/5/aprobar
+        // Aprobar apelación y reactivar operativamente el centro suspendido
+        [HttpPut("apelaciones/{id:int}/aprobar")]
+        public async Task<IActionResult> AprobarApelacion(int id)
+        {
+            var apelacion = await _context.CentrosApelaciones
+                .Include(a => a.Centro)
+                .FirstOrDefaultAsync(a => a.Id == id);
+
+            if (apelacion == null)
+            {
+                return NotFound(new { mensaje = $"Apelación con ID {id} no encontrada." });
+            }
+
+            if (!string.Equals(apelacion.Estado, "Pendiente", StringComparison.OrdinalIgnoreCase))
+            {
+                return Conflict(new
+                {
+                    mensaje = $"Solo se pueden resolver apelaciones en estado 'Pendiente'. Estado actual: '{apelacion.Estado}'."
+                });
+            }
+
+            if (apelacion.Centro == null)
+            {
+                return NotFound(new { mensaje = "El centro asociado a esta apelación no existe en la base de datos." });
+            }
+
+            int? adminId = ObtenerAdminId();
+
+            // 1. Actualizar estado de la apelación
+            apelacion.Estado = "Aprobada";
+            apelacion.FechaRevision = DateTime.UtcNow;
+            apelacion.RevisadoPorAdminId = adminId;
+
+            // 2. Reactivar el centro de adopción
+            apelacion.Centro.Activo = true;
+            apelacion.Centro.MotivoSuspension = null;
+            apelacion.Centro.FechaReactivacion = DateTime.UtcNow;
+            apelacion.Centro.FechaActualizacion = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Apelación #{ApelacionId} aprobada por Admin ID {AdminId}. Centro #{CentroId} ('{Nombre}') reactivado.",
+                apelacion.Id, adminId, apelacion.Centro.Id, apelacion.Centro.Nombre);
+
+            return Ok(new
+            {
+                mensaje = "Apelación aprobada con éxito. El centro ha sido reactivado.",
+                apelacionId = apelacion.Id,
+                centroId = apelacion.Centro.Id,
+                estadoApelacion = apelacion.Estado,
+                centroActivo = apelacion.Centro.Activo
+            });
+        }
+
+        // PUT: api/admin/centros/apelaciones/5/rechazar
+        // Rechazar apelación con fundamentación administrativa obligatoria
+        [HttpPut("apelaciones/{id:int}/rechazar")]
+        public async Task<IActionResult> RechazarApelacion(int id, [FromBody] ResolverApelacionDto dto)
+        {
+            var apelacion = await _context.CentrosApelaciones
+                .Include(a => a.Centro)
+                .FirstOrDefaultAsync(a => a.Id == id);
+
+            if (apelacion == null)
+            {
+                return NotFound(new { mensaje = $"Apelación con ID {id} no encontrada." });
+            }
+
+            if (!string.Equals(apelacion.Estado, "Pendiente", StringComparison.OrdinalIgnoreCase))
+            {
+                return Conflict(new
+                {
+                    mensaje = $"Solo se pueden resolver apelaciones en estado 'Pendiente'. Estado actual: '{apelacion.Estado}'."
+                });
+            }
+
+            string respuestaLimpia = dto.RespuestaAdmin?.Trim() ?? string.Empty;
+            if (respuestaLimpia.Length < 5)
+            {
+                return BadRequest(new
+                {
+                    mensaje = "La fundamentación del rechazo es obligatoria y debe contener al menos 5 caracteres explicativos."
+                });
+            }
+
+            int? adminId = ObtenerAdminId();
+
+            apelacion.Estado = "Rechazada";
+            apelacion.RespuestaAdmin = respuestaLimpia;
+            apelacion.FechaRevision = DateTime.UtcNow;
+            apelacion.RevisadoPorAdminId = adminId;
+
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Apelación #{ApelacionId} rechazada por Admin ID {AdminId}. Motivo: '{Motivo}'.",
+                apelacion.Id, adminId, apelacion.RespuestaAdmin);
+
+            return Ok(new
+            {
+                mensaje = "Apelación rechazada con fundamento registrado.",
+                apelacionId = apelacion.Id,
+                estadoApelacion = apelacion.Estado,
+                respuestaAdmin = apelacion.RespuestaAdmin
+            });
+        }
     }
 }

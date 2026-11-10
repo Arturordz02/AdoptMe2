@@ -60,6 +60,7 @@ import com.example.adoptme.components.TarjetaMascotaAdmin
 import com.example.adoptme.components.TarjetaSolicitudAdmin
 import com.example.adoptme.model.AdoptionRequest
 import com.example.adoptme.model.CentroAdminDto
+import com.example.adoptme.model.CentroApelacionDto
 import com.example.adoptme.model.Pet
 import com.example.adoptme.ui.theme.AdoptCardWhite
 import com.example.adoptme.ui.theme.AdoptMeBg
@@ -91,7 +92,7 @@ import com.example.adoptme.viewmodel.AdminCentrosViewModel
 fun PantallaAdministrador(
     solicitudes: List<AdoptionRequest>,
     aprobar: (AdoptionRequest) -> Pair<Boolean, String>,
-    rechazar: (AdoptionRequest) -> Unit,
+    rechazar: (solicitud: AdoptionRequest, motivo: String) -> Unit = { _, _ -> },
     cerrarSesion: () -> Unit = {},
     mascotas: List<Pet> = emptyList(),
     publicaciones: List<Pet> = emptyList(),
@@ -108,6 +109,12 @@ fun PantallaAdministrador(
 
     val centrosUiState by adminCentrosViewModel.uiState.collectAsState()
     val centrosOperando by adminCentrosViewModel.estaOperando.collectAsState()
+    val apelacionesPendientes by adminCentrosViewModel.apelacionesPendientes.collectAsState()
+    var subPestanaCentros by remember { mutableStateOf("solicitudes") } // "solicitudes", "apelaciones"
+    var apelacionParaAprobar by remember { mutableStateOf<CentroApelacionDto?>(null) }
+    var apelacionParaRechazar by remember { mutableStateOf<CentroApelacionDto?>(null) }
+    var respuestaRechazoApelacionTexto by remember { mutableStateOf("") }
+    var errorRespuestaRechazoApelacion by remember { mutableStateOf<String?>(null) }
 
     // Diálogos de control para mascotas y solicitudes
     var mascotaParaDetalle by remember { mutableStateOf<Pet?>(null) }
@@ -130,9 +137,10 @@ fun PantallaAdministrador(
     var usuarioIdVincularTexto by remember { mutableStateOf("") }
     var errorUsuarioIdVincular by remember { mutableStateOf<String?>(null) }
 
-    // Cargar centros al inicio
+    // Cargar centros y apelaciones al inicio
     LaunchedEffect(Unit) {
         adminCentrosViewModel.cargarCentros()
+        adminCentrosViewModel.cargarApelaciones()
     }
 
     // Cálculo de métricas
@@ -477,7 +485,7 @@ fun PantallaAdministrador(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Solicitudes de Centros",
+                        text = "Centros de Adopción",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = AdoptTextDark
@@ -489,107 +497,294 @@ fun PantallaAdministrador(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Filtros de estado de centros
+                // Selector de subpestañas: Directorio vs Apelaciones
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf("Todos", "Pendiente", "Aprobado", "Rechazado").forEach { filtro ->
-                        val seleccionado = filtroCentros == filtro
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (seleccionado) AdoptTeal else AdoptCardWhite,
-                            border = BorderStroke(1.dp, if (seleccionado) AdoptTeal else BorderWarm),
-                            modifier = Modifier.clickable {
-                                filtroCentros = filtro
-                                adminCentrosViewModel.cargarCentros(
-                                    estado = if (filtro == "Todos") null else filtro
-                                )
-                            }
+                    val subSol = subPestanaCentros == "solicitudes"
+                    val subApel = subPestanaCentros == "apelaciones"
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (subSol) AdoptTeal else AdoptCardWhite,
+                        border = BorderStroke(1.dp, if (subSol) AdoptTeal else BorderWarm),
+                        modifier = Modifier.weight(1f).clickable { subPestanaCentros = "solicitudes" }
+                    ) {
+                        Text(
+                            text = "Directorio y Estados",
+                            color = if (subSol) Color.White else AdoptTextDark,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (subApel) AdoptOrange else AdoptCardWhite,
+                        border = BorderStroke(1.dp, if (subApel) AdoptOrange else BorderWarm),
+                        modifier = Modifier.weight(1f).clickable {
+                            subPestanaCentros = "apelaciones"
+                            adminCentrosViewModel.cargarApelaciones()
+                        }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = filtro,
-                                color = if (seleccionado) Color.White else AdoptTextSecondary,
+                                text = "Apelaciones",
+                                color = if (subApel) Color.White else AdoptTextDark,
                                 style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (seleccionado) FontWeight.Bold else FontWeight.Normal,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                fontWeight = FontWeight.Bold
                             )
+                            if (apelacionesPendientes.isNotEmpty()) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (subApel) Color.White else MaterialTheme.colorScheme.error
+                                ) {
+                                    Text(
+                                        text = "${apelacionesPendientes.size}",
+                                        color = if (subApel) AdoptOrange else Color.White,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                when (val state = centrosUiState) {
-                    is AdminCentrosUiState.Cargando -> {
-                        Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = AdoptTeal)
-                        }
-                    }
-                    is AdminCentrosUiState.Error -> {
+                if (subPestanaCentros == "apelaciones") {
+                    // VISTA DE APELACIONES PENDIENTES
+                    if (apelacionesPendientes.isEmpty()) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)),
-                            shape = RoundedCornerShape(14.dp)
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = AdoptCardWhite),
+                            border = BorderStroke(1.dp, BorderWarm)
                         ) {
-                            Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(state.mensaje, color = MaterialTheme.colorScheme.error)
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(28.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("⚖️", fontSize = 34.sp)
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Button(onClick = { adminCentrosViewModel.refrescar() }) {
-                                    Text("Reintentar")
+                                Text(
+                                    text = "No hay apelaciones pendientes de revisión.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = AdoptTextSecondary,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            apelacionesPendientes.forEach { apelacion ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = CardDefaults.cardColors(containerColor = AdoptCardWhite),
+                                    border = BorderStroke(1.dp, BorderWarm),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "🏡 ${apelacion.centroNombre}",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = AdoptTextDark
+                                            )
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = Color(0xFFF59E0B).copy(alpha = 0.2f)
+                                            ) {
+                                                Text(
+                                                    text = "Apelación #${apelacion.id}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFFB45309),
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+
+                                        if (!apelacion.motivoSuspensionOriginal.isNullOrBlank()) {
+                                            Text(
+                                                text = "Motivo de suspensión previa: ${apelacion.motivoSuspensionOriginal}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.error
+                                            )
+                                        }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = AdoptMeBg,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(modifier = Modifier.padding(10.dp)) {
+                                                Text(
+                                                    text = "Fundamento presentado por el Centro:",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = AdoptTealDark
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = apelacion.motivoApelacion,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = AdoptTextDark
+                                                )
+                                            }
+                                        }
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Button(
+                                                onClick = { apelacionParaAprobar = apelacion },
+                                                enabled = !centrosOperando,
+                                                shape = RoundedCornerShape(8.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = AdoptTeal),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text("Aprobar y Reactivar", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                            OutlinedButton(
+                                                onClick = {
+                                                    apelacionParaRechazar = apelacion
+                                                    respuestaRechazoApelacionTexto = ""
+                                                    errorRespuestaRechazoApelacion = null
+                                                },
+                                                enabled = !centrosOperando,
+                                                shape = RoundedCornerShape(8.dp),
+                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text("Rechazar", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
-                    is AdminCentrosUiState.Exito -> {
-                        val listaCentros = state.centros
-                        if (listaCentros.isEmpty()) {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = CardDefaults.cardColors(containerColor = AdoptCardWhite),
-                                border = BorderStroke(1.dp, BorderWarm)
-                            ) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth().padding(24.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text("🏡", fontSize = 32.sp)
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        text = "No se encontraron centros con estado '$filtroCentros'.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = AdoptTextSecondary,
-                                        textAlign = TextAlign.Center
+                } else {
+                    // Filtros de estado de centros
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf("Todos", "Pendiente", "Aprobado", "Rechazado").forEach { filtro ->
+                            val seleccionado = filtroCentros == filtro
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (seleccionado) AdoptTeal else AdoptCardWhite,
+                                border = BorderStroke(1.dp, if (seleccionado) AdoptTeal else BorderWarm),
+                                modifier = Modifier.clickable {
+                                    filtroCentros = filtro
+                                    adminCentrosViewModel.cargarCentros(
+                                        estado = if (filtro == "Todos") null else filtro
                                     )
                                 }
+                            ) {
+                                Text(
+                                    text = filtro,
+                                    color = if (seleccionado) Color.White else AdoptTextSecondary,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (seleccionado) FontWeight.Bold else FontWeight.Normal,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
                             }
-                        } else {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                listaCentros.forEach { centro ->
-                                    TarjetaAdminCentroItem(
-                                        centro = centro,
-                                        estaOperando = centrosOperando,
-                                        alAprobar = { centroParaAprobar = centro },
-                                        alRechazar = {
-                                            centroParaRechazar = centro
-                                            motivoRechazoTexto = ""
-                                            errorMotivoRechazo = null
-                                        },
-                                        alSuspender = {
-                                            centroParaSuspender = centro
-                                            motivoSuspensionTexto = ""
-                                            errorMotivoSuspension = null
-                                        },
-                                        alReactivar = {
-                                            centroParaReactivar = centro
-                                        },
-                                        alVincularResponsable = {
-                                            centroParaVincular = centro
-                                            usuarioIdVincularTexto = ""
-                                            errorUsuarioIdVincular = null
-                                        }
-                                    )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    when (val state = centrosUiState) {
+                        is AdminCentrosUiState.Cargando -> {
+                            Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = AdoptTeal)
+                            }
+                        }
+                        is AdminCentrosUiState.Error -> {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(state.mensaje, color = MaterialTheme.colorScheme.error)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(onClick = { adminCentrosViewModel.refrescar() }) {
+                                        Text("Reintentar")
+                                    }
+                                }
+                            }
+                        }
+                        is AdminCentrosUiState.Exito -> {
+                            val listaCentros = state.centros
+                            if (listaCentros.isEmpty()) {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = CardDefaults.cardColors(containerColor = AdoptCardWhite),
+                                    border = BorderStroke(1.dp, BorderWarm)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Text("🏡", fontSize = 32.sp)
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            text = "No se encontraron centros con estado '$filtroCentros'.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = AdoptTextSecondary,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                }
+                            } else {
+                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    listaCentros.forEach { centro ->
+                                        TarjetaAdminCentroItem(
+                                            centro = centro,
+                                            estaOperando = centrosOperando,
+                                            alAprobar = { centroParaAprobar = centro },
+                                            alRechazar = {
+                                                centroParaRechazar = centro
+                                                motivoRechazoTexto = ""
+                                                errorMotivoRechazo = null
+                                            },
+                                            alSuspender = {
+                                                centroParaSuspender = centro
+                                                motivoSuspensionTexto = ""
+                                                errorMotivoSuspension = null
+                                            },
+                                            alReactivar = {
+                                                centroParaReactivar = centro
+                                            },
+                                            alVincularResponsable = {
+                                                centroParaVincular = centro
+                                                usuarioIdVincularTexto = ""
+                                                errorUsuarioIdVincular = null
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -891,6 +1086,98 @@ fun PantallaAdministrador(
             },
             dismissButton = {
                 TextButton(onClick = { centroParaVincular = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // Diálogos de control para Apelaciones
+    if (apelacionParaAprobar != null) {
+        val a = apelacionParaAprobar!!
+        AlertDialog(
+            onDismissRequest = { apelacionParaAprobar = null },
+            title = { Text("Aprobar Apelación y Reactivar", fontWeight = FontWeight.Bold, color = AdoptTealDark) },
+            text = {
+                Text("¿Confirmas la aprobación de la apelación #${a.id} del centro '${a.centroNombre}'? El centro será reactivado operativamente de inmediato y volverá a ser visible en el catálogo público.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val aid = a.id
+                        apelacionParaAprobar = null
+                        adminCentrosViewModel.aprobarApelacion(aid) { ok, msg ->
+                            if (ok) mensajeConfirmacion = msg else mensajeValidacion = msg
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AdoptTeal)
+                ) {
+                    Text("Aprobar y Reactivar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { apelacionParaAprobar = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    if (apelacionParaRechazar != null) {
+        val a = apelacionParaRechazar!!
+        AlertDialog(
+            onDismissRequest = {
+                apelacionParaRechazar = null
+                respuestaRechazoApelacionTexto = ""
+                errorRespuestaRechazoApelacion = null
+            },
+            title = { Text("Rechazar Apelación", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Ingresa la fundamentación administrativa del rechazo para la apelación de '${a.centroNombre}'. El centro permanecerá suspendido:")
+                    OutlinedTextField(
+                        value = respuestaRechazoApelacionTexto,
+                        onValueChange = {
+                            respuestaRechazoApelacionTexto = it
+                            if (errorRespuestaRechazoApelacion != null) errorRespuestaRechazoApelacion = null
+                        },
+                        label = { Text("Fundamento del rechazo (mínimo 5 caracteres) *") },
+                        minLines = 3,
+                        maxLines = 5,
+                        modifier = Modifier.fillMaxWidth(),
+                        isError = errorRespuestaRechazoApelacion != null
+                    )
+                    errorRespuestaRechazoApelacion?.let { err ->
+                        Text(err, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val resp = respuestaRechazoApelacionTexto.trim()
+                        if (resp.length < 5) {
+                            errorRespuestaRechazoApelacion = "La fundamentación debe contener al menos 5 caracteres."
+                            return@Button
+                        }
+                        val aid = a.id
+                        apelacionParaRechazar = null
+                        adminCentrosViewModel.rechazarApelacion(aid, resp) { ok, msg ->
+                            if (ok) mensajeConfirmacion = msg else mensajeValidacion = msg
+                        }
+                        respuestaRechazoApelacionTexto = ""
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Confirmar Rechazo")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    apelacionParaRechazar = null
+                    respuestaRechazoApelacionTexto = ""
+                    errorRespuestaRechazoApelacion = null
+                }) {
                     Text("Cancelar")
                 }
             }
