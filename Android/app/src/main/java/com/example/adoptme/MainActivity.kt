@@ -136,12 +136,11 @@ class MainActivity : ComponentActivity() {
                         try {
                             cargandoCatalogo = true
                             errorCatalogo = null
-                            val mascotasAzure = RetrofitClient.mascotasApi.obtenerMascotas()
-                            val mascotasRemotas = mascotasAzure.map { it.toPet() }
+                            val mascotasRemotas = RetrofitClient.mascotasApi.obtenerMascotas().map { it.toPet() }
 
                             Log.d(
                                 "ADOPTME_RETROFIT",
-                                "Consulta exitosa. Mascotas recibidas: ${mascotasAzure.size}"
+                                "Consulta exitosa. Mascotas recibidas: ${mascotasRemotas.size}"
                             )
 
                             mascotas.clear()
@@ -286,8 +285,7 @@ class MainActivity : ComponentActivity() {
                             }
 
                             try {
-                                val mascotasAzure = RetrofitClient.mascotasApi.obtenerMascotas()
-                                val mascotasRemotas = mascotasAzure.map { it.toPet() }
+                                val mascotasRemotas = RetrofitClient.mascotasApi.obtenerMascotas().map { it.toPet() }
 
                                 mascotas.clear()
                                 mascotas.addAll(mascotasRemotas)
@@ -308,6 +306,10 @@ class MainActivity : ComponentActivity() {
                                         pet.esRemota && clavesFavoritas.contains(pet.claveCompose)
                                     }
                                 )
+
+                                almacenamientoApp.limpiarNotificacionesPrueba(correoSesionActiva)
+                                notificaciones.clear()
+                                notificaciones.addAll(almacenamientoApp.cargarNotificaciones(correoSesionActiva))
 
                                 Log.d("ADOPTME_SYNC", "Sincronización completada para publicaciones del usuario: ${sincronizadas.size}")
                             } catch (e: Exception) {
@@ -890,6 +892,8 @@ class MainActivity : ComponentActivity() {
                                                 pet.esRemota && clavesFavoritas.contains(pet.claveCompose)
                                             }
                                         )
+                                        almacenamientoApp.limpiarNotificacionesPrueba(correoNorm)
+                                        notificaciones.clear()
                                         notificaciones.addAll(almacenamientoApp.cargarNotificaciones(correoNorm))
 
                                         // Sincronización autoritativa remota: la lista visible se alimenta exclusivamente de Neon
@@ -984,6 +988,8 @@ class MainActivity : ComponentActivity() {
                                         correoAdoptanteSeleccionado = correoAdoptante
                                         nombreCentroSeleccionado = nombreCentro
                                         correoCentroSeleccionado = correoSesionActiva
+                                        // Marcar como leídos los mensajes recibidos del adoptante
+                                        almacenamientoApp.marcarMensajesComoLeidos(correoAdoptante, idCentro, "Centro")
                                         mensajesChatActuales.clear()
                                         mensajesChatActuales.addAll(
                                             almacenamientoApp.cargarMensajesChat(correoAdoptante, idCentro)

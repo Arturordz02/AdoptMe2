@@ -109,6 +109,23 @@ fun PantallaPrincipalAdoptante(
 
     var centrosPublicos by remember { mutableStateOf<List<com.example.adoptme.model.CentroAdopcion>>(emptyList()) }
 
+    val conteoNotificacionesNoLeidas = notificaciones.count { !it.leida && !com.example.adoptme.repository.esNotificacionPruebaE2E(it) }
+    var conteoMensajesNoLeidos by remember { mutableStateOf(0) }
+
+    // Limpieza inicial de residuos técnicos de prueba y conteo reactivo
+    LaunchedEffect(correoUsuarioActivo) {
+        val limpiadas = almacenamientoApp.limpiarNotificacionesPrueba(correoUsuarioActivo)
+        if (limpiadas > 0) {
+            notificaciones.clear()
+            notificaciones.addAll(almacenamientoApp.cargarNotificaciones(correoUsuarioActivo))
+        }
+        conteoMensajesNoLeidos = almacenamientoApp.contarMensajesNoLeidosAdoptante(correoUsuarioActivo)
+    }
+
+    LaunchedEffect(pantallaSeleccionada, mensajesChatActuales.size) {
+        conteoMensajesNoLeidos = almacenamientoApp.contarMensajesNoLeidosAdoptante(correoUsuarioActivo)
+    }
+
     LaunchedEffect(Unit) {
         try {
             val lista = com.example.adoptme.api.RetrofitClient.centrosApi.obtenerCentros()
@@ -127,7 +144,9 @@ fun PantallaPrincipalAdoptante(
                     cambiarPantalla = { pantalla ->
                         pantallaSeleccionada = pantalla
                     },
-                    mostrarAdmin = false
+                    mostrarAdmin = false,
+                    conteoNotificacionesNoLeidas = conteoNotificacionesNoLeidas,
+                    conteoMensajesNoLeidos = conteoMensajesNoLeidos
                 )
             }
         }
@@ -393,9 +412,12 @@ fun PantallaPrincipalAdoptante(
                                     cambiarNombreCentro(nombreCentro)
                                     cambiarCorreoCentro(correoCentro)
                                     cambiarCorreoAdoptante(correoUsuarioActivo)
+                                    // Marcar mensajes recibidos del centro como leídos
+                                    almacenamientoApp.marcarMensajesComoLeidos(correoUsuarioActivo, idCentro, "Adoptante")
                                     mensajesChatActuales.clear()
                                     val guardados = almacenamientoApp.cargarMensajesChat(correoUsuarioActivo, idCentro)
                                     mensajesChatActuales.addAll(guardados)
+                                    conteoMensajesNoLeidos = almacenamientoApp.contarMensajesNoLeidosAdoptante(correoUsuarioActivo)
                                     if (mensajesChatActuales.isEmpty()) {
                                         val fechaActual = SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(Date())
                                         val mensajeInicial = MensajeChat(
@@ -463,9 +485,12 @@ fun PantallaPrincipalAdoptante(
                                         cambiarCorreoCentro("contacto@adoptme.com")
                                     }
                                 }
+                                // Marcar mensajes recibidos como leídos
+                                almacenamientoApp.marcarMensajesComoLeidos(correoUsuarioActivo, idCentroSeleccionado, "Adoptante")
                                 val guardados = almacenamientoApp.cargarMensajesChat(correoUsuarioActivo, idCentroSeleccionado)
                                 mensajesChatActuales.clear()
                                 mensajesChatActuales.addAll(guardados)
+                                conteoMensajesNoLeidos = almacenamientoApp.contarMensajesNoLeidosAdoptante(correoUsuarioActivo)
                                 if (mensajesChatActuales.isEmpty()) {
                                     val fechaActual = SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(Date())
                                     val mensajeInicial = MensajeChat(
@@ -489,6 +514,10 @@ fun PantallaPrincipalAdoptante(
                                         fecha = fechaActual
                                     )
                                 }
+                            } else {
+                                // Al estar en la conversación, asegurar que los mensajes recibidos se marquen como leídos
+                                almacenamientoApp.marcarMensajesComoLeidos(correoUsuarioActivo, idCentroSeleccionado, "Adoptante")
+                                conteoMensajesNoLeidos = almacenamientoApp.contarMensajesNoLeidosAdoptante(correoUsuarioActivo)
                             }
                             PantallaChat(
                                 idCentro = idCentroSeleccionado,
@@ -506,7 +535,26 @@ fun PantallaPrincipalAdoptante(
                         }
 
                         "notifications" -> {
-                            PantallaNotificaciones(notificaciones = notificaciones)
+                            PantallaNotificaciones(
+                                notificaciones = notificaciones,
+                                onMarcarLeida = { idNotif ->
+                                    almacenamientoApp.marcarNotificacionComoLeida(correoUsuarioActivo, idNotif)
+                                    val idx = notificaciones.indexOfFirst { it.id == idNotif }
+                                    if (idx != -1) {
+                                        notificaciones[idx] = notificaciones[idx].copy(leida = true)
+                                    }
+                                },
+                                onMarcarTodasLeidas = {
+                                    almacenamientoApp.marcarTodasNotificacionesComoLeidas(correoUsuarioActivo)
+                                    for (i in notificaciones.indices) {
+                                        notificaciones[i] = notificaciones[i].copy(leida = true)
+                                    }
+                                },
+                                onEliminarNotificacion = { idNotif ->
+                                    almacenamientoApp.eliminarNotificacion(correoUsuarioActivo, idNotif)
+                                    notificaciones.removeAll { it.id == idNotif }
+                                }
+                            )
                         }
 
                         "consumo_responsable", "consumoResponsable" -> {

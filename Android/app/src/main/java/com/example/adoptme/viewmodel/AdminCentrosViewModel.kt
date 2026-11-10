@@ -6,6 +6,7 @@ import com.example.adoptme.api.RetrofitClient
 import com.example.adoptme.model.AsignarPropietarioCentroRequest
 import com.example.adoptme.model.CentroAdminDto
 import com.example.adoptme.model.RechazarCentroRequest
+import com.example.adoptme.model.SuspenderCentroRequest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -152,17 +153,19 @@ class AdminCentrosViewModel : ViewModel() {
         }
     }
 
-    fun asignarPropietario(id: Int, usuarioId: Int, onResultado: (Boolean, String) -> Unit) {
+    fun suspenderCentro(id: Int, motivo: String, onResultado: (Boolean, String) -> Unit) {
+        if (motivo.trim().length < 5) {
+            onResultado(false, "El motivo de suspensión debe contener al menos 5 caracteres explicativos.")
+            return
+        }
+
         _estaOperando.value = true
         viewModelScope.launch {
             try {
-                val respuesta = RetrofitClient.centrosApi.asignarPropietario(
-                    id,
-                    AsignarPropietarioCentroRequest(usuarioId)
-                )
+                val respuesta = RetrofitClient.centrosApi.suspenderCentro(id, SuspenderCentroRequest(motivo.trim()))
                 if (respuesta.isSuccessful) {
                     refrescar()
-                    onResultado(true, "Propietario asignado exitosamente.")
+                    onResultado(true, "Centro suspendido administrativamente.")
                 } else {
                     val msg = procesarErrorHttp(respuesta.code(), respuesta.errorBody()?.string())
                     onResultado(false, msg)
@@ -173,6 +176,53 @@ class AdminCentrosViewModel : ViewModel() {
                 _estaOperando.value = false
             }
         }
+    }
+
+    fun reactivarCentro(id: Int, onResultado: (Boolean, String) -> Unit) {
+        _estaOperando.value = true
+        viewModelScope.launch {
+            try {
+                val respuesta = RetrofitClient.centrosApi.reactivarCentro(id)
+                if (respuesta.isSuccessful) {
+                    refrescar()
+                    onResultado(true, "Centro reactivado exitosamente.")
+                } else {
+                    val msg = procesarErrorHttp(respuesta.code(), respuesta.errorBody()?.string())
+                    onResultado(false, msg)
+                }
+            } catch (e: Exception) {
+                onResultado(false, e.localizedMessage ?: "Fallo de conexión.")
+            } finally {
+                _estaOperando.value = false
+            }
+        }
+    }
+
+    fun vincularResponsable(id: Int, usuarioId: Int, onResultado: (Boolean, String) -> Unit) {
+        _estaOperando.value = true
+        viewModelScope.launch {
+            try {
+                val respuesta = RetrofitClient.centrosApi.vincularResponsable(
+                    id,
+                    AsignarPropietarioCentroRequest(usuarioId)
+                )
+                if (respuesta.isSuccessful) {
+                    refrescar()
+                    onResultado(true, "Usuario responsable vinculado exitosamente.")
+                } else {
+                    val msg = procesarErrorHttp(respuesta.code(), respuesta.errorBody()?.string())
+                    onResultado(false, msg)
+                }
+            } catch (e: Exception) {
+                onResultado(false, e.localizedMessage ?: "Fallo de conexión.")
+            } finally {
+                _estaOperando.value = false
+            }
+        }
+    }
+
+    fun asignarPropietario(id: Int, usuarioId: Int, onResultado: (Boolean, String) -> Unit) {
+        vincularResponsable(id, usuarioId, onResultado)
     }
 
     private fun procesarErrorHttp(codigoHttp: Int, cuerpo: String?): String {
@@ -189,7 +239,7 @@ class AdminCentrosViewModel : ViewModel() {
         }
         if (codigoHttp == 409) {
             val msgFromJson = extraerMensajeJson(cuerpo)
-            return msgFromJson ?: "Conflicto: El usuario ya es propietario de otro centro de adopción."
+            return msgFromJson ?: "Conflicto: El usuario ya es responsable de otro centro, o este centro ya tiene un responsable asignado."
         }
         return extraerMensajeJson(cuerpo) ?: "Error en la operación del servidor ($codigoHttp)."
     }

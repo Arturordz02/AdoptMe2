@@ -1,13 +1,17 @@
 package com.example.adoptme.components
 
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.adoptme.R
 
@@ -16,6 +20,8 @@ fun BarraNavegacionInferior(
     pantalla: String,
     cambiarPantalla: (String) -> Unit,
     mostrarAdmin: Boolean = false,
+    conteoNotificacionesNoLeidas: Int = 0,
+    conteoMensajesNoLeidos: Int = 0,
     modifier: Modifier = Modifier
 ) {
 
@@ -63,10 +69,24 @@ fun BarraNavegacionInferior(
                 cambiarPantalla("chat")
             },
             icon = {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_chat),
-                    contentDescription = "Chat"
-                )
+                BadgedBox(
+                    badge = {
+                        if (conteoMensajesNoLeidos > 0) {
+                            Badge(
+                                containerColor = MaterialTheme.colorScheme.error,
+                                contentColor = MaterialTheme.colorScheme.onError
+                            ) {
+                                val textoBadge = if (conteoMensajesNoLeidos > 99) "99+" else conteoMensajesNoLeidos.toString()
+                                Text(text = textoBadge, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_chat),
+                        contentDescription = "Chat"
+                    )
+                }
             },
             alwaysShowLabel = false,
             label = {
@@ -80,10 +100,24 @@ fun BarraNavegacionInferior(
                 cambiarPantalla("notifications")
             },
             icon = {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_notifications),
-                    contentDescription = "Avisos"
-                )
+                BadgedBox(
+                    badge = {
+                        if (conteoNotificacionesNoLeidas > 0) {
+                            Badge(
+                                containerColor = MaterialTheme.colorScheme.error,
+                                contentColor = MaterialTheme.colorScheme.onError
+                            ) {
+                                val textoBadge = if (conteoNotificacionesNoLeidas > 99) "99+" else conteoNotificacionesNoLeidas.toString()
+                                Text(text = textoBadge, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_notifications),
+                        contentDescription = "Avisos"
+                    )
+                }
             },
             alwaysShowLabel = false,
             label = {

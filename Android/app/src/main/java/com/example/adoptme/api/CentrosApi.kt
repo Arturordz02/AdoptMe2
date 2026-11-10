@@ -7,6 +7,7 @@ import com.example.adoptme.model.CentroPropietarioDto
 import com.example.adoptme.model.CentroPublicoDto
 import com.example.adoptme.model.OperacionCentroResponse
 import com.example.adoptme.model.RechazarCentroRequest
+import com.example.adoptme.model.SuspenderCentroRequest
 import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.Body
@@ -92,6 +93,23 @@ interface CentrosApi {
     @PUT("api/admin/centros/{id}/desactivar")
     suspend fun desactivarCentro(
         @Path("id") id: Int
+    ): Response<OperacionCentroResponse>
+
+    @PUT("api/admin/centros/{id}/suspender")
+    suspend fun suspenderCentro(
+        @Path("id") id: Int,
+        @Body request: SuspenderCentroRequest
+    ): Response<OperacionCentroResponse>
+
+    @PUT("api/admin/centros/{id}/reactivar")
+    suspend fun reactivarCentro(
+        @Path("id") id: Int
+    ): Response<OperacionCentroResponse>
+
+    @PUT("api/admin/centros/{id}/vincular-responsable")
+    suspend fun vincularResponsable(
+        @Path("id") id: Int,
+        @Body request: AsignarPropietarioCentroRequest
     ): Response<OperacionCentroResponse>
 
     @PUT("api/admin/centros/{id}/asignar-propietario")

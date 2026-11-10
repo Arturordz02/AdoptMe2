@@ -1,6 +1,7 @@
 package com.example.adoptme.repository
 
 import android.content.Context
+import android.content.SharedPreferences
 import com.example.adoptme.model.AdoptionRequest
 import com.example.adoptme.model.ConversacionCentro
 import com.example.adoptme.model.MensajeChat
@@ -48,15 +49,46 @@ fun claveConversacionesCentro(correoCentro: String): String {
     return "conversaciones_centro_${obtenerClaveUsuario(correoCentro)}"
 }
 
+/**
+ * Prefijos técnicos inequívocos de pruebas automatizadas/E2E.
+ * Utilizados para filtrar de forma segura datos temporales sin afectar notificaciones legítimas.
+ */
+val PREFIJOS_PRUEBA_E2E = listOf(
+    "PRUEBA_",
+    "PRUEBA_ANDROID_",
+    "PRUEBA_PRODUCCION_",
+    "PRUEBA_CAMARA_",
+    "PRUEBA_SOLICITUD_",
+    "PRUEBA_CENTRO_",
+    "TEST_E2E_"
+)
+
+/**
+ * Determina si una notificación corresponde a un residuo técnico de pruebas automatizadas.
+ * Se basa exclusivamente en prefijos técnicos inequívocos para evitar falsos positivos con lenguaje natural.
+ */
+fun esNotificacionPruebaE2E(item: NotificationItem): Boolean {
+    val titulo = item.title.trim()
+    val mensaje = item.message.trim()
+    return PREFIJOS_PRUEBA_E2E.any { prefijo ->
+        titulo.startsWith(prefijo, ignoreCase = true) ||
+        mensaje.startsWith(prefijo, ignoreCase = true) ||
+        titulo.contains("PRUEBA_SOLICITUD_", ignoreCase = true) ||
+        titulo.contains("PRUEBA_CENTRO_", ignoreCase = true) ||
+        titulo.contains("PRUEBA_PRODUCCION_", ignoreCase = true)
+    }
+}
+
 class AppStorage(
-    context: Context
+    private val preferencias: SharedPreferences
 ) {
 
-    private val preferencias =
+    constructor(context: Context) : this(
         context.getSharedPreferences(
             "adoptme_datos",
             Context.MODE_PRIVATE
         )
+    )
 
     companion object {
         const val CUENTA_DEFECTO = "usuario@adoptme.com"
@@ -218,12 +250,20 @@ class AppStorage(
         notificaciones: List<NotificationItem>
     ) {
         val clave = claveNotificaciones(correo)
+        val correoNorm = normalizarCorreoUsuario(correo)
         val arreglo = JSONArray()
 
         notificaciones.forEach { notificacion ->
-            val objeto = JSONObject()
-            objeto.put("title", notificacion.title)
-            objeto.put("message", notificacion.message)
+            val objeto = JSONObject().apply {
+                put("id", notificacion.id)
+                put("correoPropietario", if (notificacion.correoPropietario.isNotBlank()) notificacion.correoPropietario else correoNorm)
+                put("title", notificacion.title)
+                put("message", notificacion.message)
+                put("timestamp", notificacion.timestamp)
+                put("fecha", notificacion.fecha)
+                put("leida", notificacion.leida)
+                put("tipo", notificacion.tipo)
+            }
             arreglo.put(objeto)
         }
 
@@ -236,15 +276,34 @@ class AppStorage(
         val clave = claveNotificaciones(correo)
         val contenido = preferencias.getString(clave, null) ?: return emptyList()
         val resultado = mutableListOf<NotificationItem>()
+        val correoNorm = normalizarCorreoUsuario(correo)
 
         try {
             val arreglo = JSONArray(contenido)
             for (i in 0 until arreglo.length()) {
                 val objeto = arreglo.getJSONObject(i)
+                val title = objeto.getString("title")
+                val message = objeto.getString("message")
+                val idFallback = "${title}_${message}_$i".hashCode().toString()
+                val id = objeto.optString("id", "").ifBlank { idFallback }
+                val correoProp = objeto.optString("correoPropietario", correoNorm)
+                val timestamp = objeto.optLong("timestamp", System.currentTimeMillis())
+                val fecha = objeto.optString("fecha", "")
+                // Compatibilidad determinista: los registros históricos que no posean el campo 'leida'
+                // se consideran ya vistos (true) para no inflar indebidamente el badge inicial con avisos pasados.
+                val leida = if (objeto.has("leida")) objeto.getBoolean("leida") else true
+                val tipo = objeto.optString("tipo", "SISTEMA")
+
                 resultado.add(
                     NotificationItem(
-                        title = objeto.getString("title"),
-                        message = objeto.getString("message")
+                        title = title,
+                        message = message,
+                        id = id,
+                        correoPropietario = correoProp,
+                        timestamp = timestamp,
+                        fecha = fecha,
+                        leida = leida,
+                        tipo = tipo
                     )
                 )
             }
@@ -257,8 +316,64 @@ class AppStorage(
 
     fun agregarNotificacion(correo: String, item: NotificationItem) {
         val existentes = cargarNotificaciones(correo).toMutableList()
-        existentes.add(0, item)
+        val correoNorm = normalizarCorreoUsuario(correo)
+        val conPropietario = if (item.correoPropietario.isBlank()) item.copy(correoPropietario = correoNorm) else item
+        existentes.add(0, conPropietario)
         guardarNotificaciones(correo, existentes)
+    }
+
+    fun contarNotificacionesNoLeidas(correo: String): Int {
+        val lista = cargarNotificaciones(correo)
+        return lista.count { !it.leida && !esNotificacionPruebaE2E(it) }
+    }
+
+    fun marcarNotificacionComoLeida(correo: String, idNotificacion: String): Boolean {
+        val existentes = cargarNotificaciones(correo).toMutableList()
+        val indice = existentes.indexOfFirst { it.id == idNotificacion }
+        if (indice != -1) {
+            existentes[indice] = existentes[indice].copy(leida = true)
+            guardarNotificaciones(correo, existentes)
+            return true
+        }
+        return false
+    }
+
+    fun marcarTodasNotificacionesComoLeidas(correo: String): Int {
+        val existentes = cargarNotificaciones(correo)
+        var modificados = 0
+        val actualizadas = existentes.map {
+            if (!it.leida) {
+                modificados++
+                it.copy(leida = true)
+            } else it
+        }
+        if (modificados > 0) {
+            guardarNotificaciones(correo, actualizadas)
+        }
+        return modificados
+    }
+
+    fun eliminarNotificacion(correo: String, idNotificacion: String): Boolean {
+        val existentes = cargarNotificaciones(correo).toMutableList()
+        val eliminado = existentes.removeAll { it.id == idNotificacion }
+        if (eliminado) {
+            guardarNotificaciones(correo, existentes)
+        }
+        return eliminado
+    }
+
+    /**
+     * Limpieza controlada e idempotente de notificaciones técnicas generadas en pruebas automatizadas.
+     * Preserva intactas todas las notificaciones legítimas de la cuenta.
+     */
+    fun limpiarNotificacionesPrueba(correo: String): Int {
+        val existentes = cargarNotificaciones(correo)
+        val filtradas = existentes.filterNot { esNotificacionPruebaE2E(it) }
+        val eliminadas = existentes.size - filtradas.size
+        if (eliminadas > 0) {
+            guardarNotificaciones(correo, filtradas)
+        }
+        return eliminadas
     }
 
     // =========================================================================
@@ -502,6 +617,10 @@ class AppStorage(
                 put("nombreCentro", m.nombreCentro)
                 put("fecha", m.fecha)
                 put("esDelCentro", m.esDelCentro)
+                put("leido", m.leido)
+                if (m.fechaLectura != null) {
+                    put("fechaLectura", m.fechaLectura)
+                }
             }
             arreglo.put(obj)
         }
@@ -526,6 +645,10 @@ class AppStorage(
             val arreglo = JSONArray(contenido)
             for (i in 0 until arreglo.length()) {
                 val obj = arreglo.getJSONObject(i)
+                // Compatibilidad determinista: los registros históricos sin 'leido' se asumen ya vistos (true).
+                val leido = if (obj.has("leido")) obj.getBoolean("leido") else true
+                val fechaLectura = if (obj.has("fechaLectura")) obj.getString("fechaLectura") else null
+
                 resultado.add(
                     MensajeChat(
                         id = obj.optLong("id", System.currentTimeMillis()),
@@ -535,7 +658,9 @@ class AppStorage(
                         texto = obj.optString("texto", ""),
                         nombreCentro = obj.optString("nombreCentro", ""),
                         fecha = obj.optString("fecha", ""),
-                        esDelCentro = obj.optBoolean("esDelCentro", false)
+                        esDelCentro = obj.optBoolean("esDelCentro", false),
+                        leido = leido,
+                        fechaLectura = fechaLectura
                     )
                 )
             }
@@ -544,6 +669,91 @@ class AppStorage(
         }
 
         return resultado
+    }
+
+    /**
+     * Cuenta mensajes no leídos en una conversación específica para un rol dado.
+     * Para Adoptante: cuenta los mensajes enviados por el Centro (esDelCentro == true) que no estén leídos.
+     * Para Centro: cuenta los mensajes enviados por el Adoptante (!esDelCentro) que no estén leídos.
+     */
+    fun contarMensajesNoLeidosConversacion(
+        correoAdoptante: String,
+        idCentro: Int,
+        rolUsuario: String
+    ): Int {
+        val mensajes = cargarMensajesChat(correoAdoptante, idCentro)
+        val esCentro = rolUsuario.equals("Centro", ignoreCase = true)
+        return mensajes.count { m ->
+            val esRecibido = if (esCentro) !m.esDelCentro else m.esDelCentro
+            esRecibido && !m.leido
+        }
+    }
+
+    /**
+     * Marca como leídos los mensajes recibidos en una conversación específica.
+     * Retorna la cantidad de mensajes marcados.
+     */
+    fun marcarMensajesComoLeidos(
+        correoAdoptante: String,
+        idCentro: Int,
+        rolUsuario: String
+    ): Int {
+        val mensajes = cargarMensajesChat(correoAdoptante, idCentro)
+        if (mensajes.isEmpty()) return 0
+
+        val esCentro = rolUsuario.equals("Centro", ignoreCase = true)
+        var marcados = 0
+        val fechaLecturaActual = java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+
+        val actualizados = mensajes.map { m ->
+            val esRecibido = if (esCentro) !m.esDelCentro else m.esDelCentro
+            if (esRecibido && !m.leido) {
+                marcados++
+                m.copy(leido = true, fechaLectura = fechaLecturaActual)
+            } else {
+                m
+            }
+        }
+
+        if (marcados > 0) {
+            guardarMensajesChat(correoAdoptante, idCentro, actualizados)
+        }
+        return marcados
+    }
+
+    /**
+     * Calcula el total de mensajes recibidos no leídos para un Adoptante
+     * a través de todas sus conversaciones guardadas.
+     */
+    fun contarMensajesNoLeidosAdoptante(correoAdoptante: String): Int {
+        val prefijo = "chat_${obtenerClaveUsuario(correoAdoptante)}_centro_"
+        var total = 0
+        try {
+            val todasLasClaves = preferencias.all.keys
+            for (clave in todasLasClaves) {
+                if (clave.startsWith(prefijo)) {
+                    val parteIdCentro = clave.removePrefix(prefijo)
+                    val idCentro = parteIdCentro.toIntOrNull() ?: continue
+                    total += contarMensajesNoLeidosConversacion(correoAdoptante, idCentro, "Adoptante")
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return total
+    }
+
+    /**
+     * Calcula el total de mensajes recibidos no leídos para un Centro
+     * a través de todas las conversaciones registradas en su bandeja.
+     */
+    fun contarMensajesNoLeidosCentro(correoCentro: String): Int {
+        val conversaciones = cargarConversacionesCentro(correoCentro)
+        var total = 0
+        for (c in conversaciones) {
+            total += contarMensajesNoLeidosConversacion(c.correoAdoptante, c.idCentro, "Centro")
+        }
+        return total
     }
 
     /**
@@ -563,6 +773,7 @@ class AppStorage(
 
         // Evitar duplicar la conversación; actualizar su posición y último mensaje
         actuales.removeAll { it.idCentro == idCentro && normalizarCorreoUsuario(it.correoAdoptante) == adoptanteNorm }
+        val noLeidos = contarMensajesNoLeidosConversacion(adoptanteNorm, idCentro, "Centro")
         actuales.add(
             0,
             ConversacionCentro(
@@ -571,7 +782,8 @@ class AppStorage(
                 correoCentro = normalizarCorreoUsuario(correoCentro),
                 nombreCentro = nombreCentro,
                 ultimoTexto = ultimoTexto,
-                fecha = fecha
+                fecha = fecha,
+                mensajesNoLeidos = noLeidos
             )
         )
 
@@ -607,14 +819,19 @@ class AppStorage(
             val arreglo = JSONArray(contenido)
             for (i in 0 until arreglo.length()) {
                 val obj = arreglo.getJSONObject(i)
+                val idCentro = obj.optInt("idCentro", 1)
+                val correoAdoptante = obj.optString("correoAdoptante", "")
+                val noLeidos = contarMensajesNoLeidosConversacion(correoAdoptante, idCentro, "Centro")
+
                 resultado.add(
                     ConversacionCentro(
-                        idCentro = obj.optInt("idCentro", 1),
-                        correoAdoptante = obj.optString("correoAdoptante", ""),
+                        idCentro = idCentro,
+                        correoAdoptante = correoAdoptante,
                         correoCentro = obj.optString("correoCentro", correoCentro),
                         nombreCentro = obj.optString("nombreCentro", ""),
                         ultimoTexto = obj.optString("ultimoTexto", ""),
-                        fecha = obj.optString("fecha", "")
+                        fecha = obj.optString("fecha", ""),
+                        mensajesNoLeidos = noLeidos
                     )
                 )
             }

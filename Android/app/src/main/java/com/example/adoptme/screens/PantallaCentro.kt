@@ -11,6 +11,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -95,6 +96,7 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -192,7 +194,7 @@ fun PantallaCentro(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier
             .fillMaxSize()
-            .background(AdoptMeBg)
+            .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
             .navigationBarsPadding()
     ) { paddingValues ->
@@ -213,7 +215,7 @@ fun PantallaCentro(
                         Text(
                             text = "Cargando perfil operativo del centro...",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = AdoptTextSecondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -230,7 +232,8 @@ fun PantallaCentro(
                         Text(
                             text = state.mensaje,
                             style = MaterialTheme.typography.titleMedium,
-                            textAlign = TextAlign.Center
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Button(
@@ -259,28 +262,30 @@ fun PantallaCentro(
                     val idCentroReal = centro.id
                     val conversacionesFiltradas = conversaciones.filter { it.idCentro == idCentroReal }
                     val mascotasDelCentro = mascotasTotales.filter { it.centroId == idCentroReal }
+                    val mascotasDisponibles = mascotasDelCentro.count { it.status.equals("Disponible", ignoreCase = true) }
+                    val totalNoLeidosCentro = conversacionesFiltradas.sumOf { it.mensajesNoLeidos }
 
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 20.dp, vertical = 12.dp)
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
                     ) {
-                        // TARJETA DE PERFIL INSTITUCIONAL
+                        // TARJETA DE PERFIL INSTITUCIONAL REDISEÑADA
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(18.dp),
-                            colors = CardDefaults.cardColors(containerColor = AdoptCardWhite),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
+                            Column(modifier = Modifier.padding(14.dp)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    // Logotipo remoto o placeholder
+                                    // Logotipo institucional
                                     Box(
                                         modifier = Modifier
-                                            .size(60.dp)
+                                            .size(62.dp)
                                             .clip(CircleShape)
                                             .background(AdoptTealLight)
                                             .clickable { mostrarDialogoOpcionesLogo = true },
@@ -316,30 +321,42 @@ fun PantallaCentro(
                                             text = centro.nombre,
                                             style = MaterialTheme.typography.titleLarge,
                                             fontWeight = FontWeight.Bold,
-                                            color = AdoptTextDark
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
-                                        Text(
-                                            text = "📍 ${centro.distrito.ifBlank { "Lima" }} · ${centro.direccion}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = AdoptTealDark,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
+
+                                        // Badges de estado institucional
                                         Row(
+                                            modifier = Modifier.padding(vertical = 3.dp),
                                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Surface(
-                                                shape = RoundedCornerShape(6.dp),
-                                                color = Color(0xFF10B981).copy(alpha = 0.15f)
-                                            ) {
-                                                Text(
-                                                    text = "Aprobado · Activo (ID #$idCentroReal)",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color(0xFF047857),
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                )
+                                            if (centro.estado.equals("Aprobado", ignoreCase = true)) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = Color(0xFF10B981).copy(alpha = 0.15f)
+                                                ) {
+                                                    Text(
+                                                        text = "✓ Verificado",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color(0xFF047857),
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                            if (centro.activo) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = AdoptTeal.copy(alpha = 0.15f)
+                                                ) {
+                                                    Text(
+                                                        text = "Activo (ID #$idCentroReal)",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = AdoptTealDark,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
                                             }
                                             if (centro.esDemostrativo) {
                                                 Surface(
@@ -356,57 +373,177 @@ fun PantallaCentro(
                                                 }
                                             }
                                         }
-                                    }
-                                }
 
-                                Spacer(modifier = Modifier.height(10.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    OutlinedButton(
-                                        onClick = { mostrarDialogoEditar = true },
-                                        modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Text("Editar perfil", fontSize = 12.sp)
-                                    }
-
-                                    OutlinedButton(
-                                        onClick = { mostrarDialogoOpcionesLogo = true },
-                                        modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Text("Cambiar logo", fontSize = 12.sp)
-                                    }
-
-                                    Button(
-                                        onClick = onPublicarMascota,
-                                        modifier = Modifier.weight(1.2f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = AdoptOrange),
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Text("Publicar mascota", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        // Dirección física y distrito
+                                        Text(
+                                            text = "📍 ${centro.direccion}${if (centro.distrito.isNotBlank()) ", ${centro.distrito}" else ""}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = AdoptTealDark,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
                                     }
                                 }
 
                                 Spacer(modifier = Modifier.height(8.dp))
 
-                                OutlinedButton(
-                                    onClick = cerrarSesion,
+                                // Contacto y horario
+                                Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(10.dp),
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("Cerrar sesión", fontSize = 12.sp)
+                                    Text(
+                                        text = "🕒 ${centro.horario}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = "📞 ${centro.telefono}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // Acciones operativas responsive (no 3 botones apretados)
+                                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                                    if (maxWidth < 360.dp) {
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Button(
+                                                onClick = onPublicarMascota,
+                                                modifier = Modifier.fillMaxWidth(),
+                                                colors = ButtonDefaults.buttonColors(containerColor = AdoptOrange),
+                                                shape = RoundedCornerShape(10.dp)
+                                            ) {
+                                                Text("Publicar mascota", fontWeight = FontWeight.Bold)
+                                            }
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                OutlinedButton(
+                                                    onClick = { mostrarDialogoEditar = true },
+                                                    modifier = Modifier.weight(1f),
+                                                    shape = RoundedCornerShape(10.dp)
+                                                ) {
+                                                    Text("Editar", fontSize = 12.sp)
+                                                }
+                                                OutlinedButton(
+                                                    onClick = { mostrarDialogoOpcionesLogo = true },
+                                                    modifier = Modifier.weight(1f),
+                                                    shape = RoundedCornerShape(10.dp)
+                                                ) {
+                                                    Text("Logo", fontSize = 12.sp)
+                                                }
+                                                OutlinedButton(
+                                                    onClick = cerrarSesion,
+                                                    modifier = Modifier.weight(1f),
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                                                ) {
+                                                    Text("Salir", fontSize = 12.sp)
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                OutlinedButton(
+                                                    onClick = { mostrarDialogoEditar = true },
+                                                    modifier = Modifier.weight(1f),
+                                                    shape = RoundedCornerShape(10.dp)
+                                                ) {
+                                                    Text("Editar perfil", fontSize = 12.sp)
+                                                }
+                                                OutlinedButton(
+                                                    onClick = { mostrarDialogoOpcionesLogo = true },
+                                                    modifier = Modifier.weight(1f),
+                                                    shape = RoundedCornerShape(10.dp)
+                                                ) {
+                                                    Text("Cambiar logo", fontSize = 12.sp)
+                                                }
+                                                Button(
+                                                    onClick = onPublicarMascota,
+                                                    modifier = Modifier.weight(1.3f),
+                                                    colors = ButtonDefaults.buttonColors(containerColor = AdoptOrange),
+                                                    shape = RoundedCornerShape(10.dp)
+                                                ) {
+                                                    Text("Publicar mascota", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                            OutlinedButton(
+                                                onClick = cerrarSesion,
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(10.dp),
+                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                                            ) {
+                                                Text("Cerrar sesión", fontSize = 12.sp)
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                        // SECCIÓN DE CONVERSACIONES AISLADAS
+                        // CUADRÍCULA 2x2 DE MÉTRICAS OPERATIVAS
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TarjetaMetricaCentro(
+                                titulo = "Publicaciones",
+                                valor = "${mascotasDelCentro.size}",
+                                icono = "🐾",
+                                modifier = Modifier.weight(1f)
+                            )
+                            TarjetaMetricaCentro(
+                                titulo = "Disponibles",
+                                valor = "$mascotasDisponibles",
+                                icono = "✨",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TarjetaMetricaCentro(
+                                titulo = "Conversaciones",
+                                valor = "${conversacionesFiltradas.size}",
+                                icono = "💬",
+                                modifier = Modifier.weight(1f)
+                            )
+                            TarjetaMetricaCentro(
+                                titulo = "No leídos",
+                                valor = if (totalNoLeidosCentro > 99) "99+" else "$totalNoLeidosCentro",
+                                icono = "📬",
+                                resaltar = totalNoLeidosCentro > 0,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // SECCIÓN DE CONVERSACIONES AISLADAS (UX-B1)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -417,25 +554,45 @@ fun PantallaCentro(
                                     text = "Bandeja de mensajes",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = AdoptTextDark
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
                                     text = "Mensajería local demostrativa (aislada al ID #$idCentroReal)",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = AdoptTextSecondary
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = AdoptTealLight
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = "${conversacionesFiltradas.size} chats",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = AdoptTealDark,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                )
+                                if (totalNoLeidosCentro > 0) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = MaterialTheme.colorScheme.errorContainer
+                                    ) {
+                                        val textoNoLeidos = if (totalNoLeidosCentro > 99) "99+ no leídos" else "$totalNoLeidosCentro no leído(s)"
+                                        Text(
+                                            text = textoNoLeidos,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onErrorContainer,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = AdoptTealLight
+                                ) {
+                                    Text(
+                                        text = "${conversacionesFiltradas.size} chats",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = AdoptTealDark,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
                             }
                         }
 
@@ -450,7 +607,7 @@ fun PantallaCentro(
                             ) {
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = CardDefaults.cardColors(containerColor = AdoptCardWhite),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                                     shape = RoundedCornerShape(16.dp)
                                 ) {
                                     Column(
@@ -462,13 +619,13 @@ fun PantallaCentro(
                                         Text(
                                             text = "Sin conversaciones para este centro",
                                             fontWeight = FontWeight.Bold,
-                                            color = AdoptTextDark
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
                                             text = "Los mensajes enviados por adoptantes a ${centro.nombre} aparecerán aquí automáticamente.",
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = AdoptTextSecondary,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             textAlign = TextAlign.Center
                                         )
                                     }
@@ -477,18 +634,25 @@ fun PantallaCentro(
                         } else {
                             LazyColumn(
                                 modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
                                 contentPadding = PaddingValues(bottom = 16.dp)
                             ) {
                                 items(
                                     items = conversacionesFiltradas,
                                     key = { "${it.idCentro}_${it.correoAdoptante}" }
                                 ) { conv ->
+                                    val tienePendientes = conv.mensajesNoLeidos > 0
+
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = RoundedCornerShape(14.dp),
-                                        colors = CardDefaults.cardColors(containerColor = AdoptCardWhite),
-                                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (tienePendientes) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
+                                        ),
+                                        border = if (tienePendientes) {
+                                            androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                                        } else null,
+                                        elevation = CardDefaults.cardElevation(defaultElevation = if (tienePendientes) 3.dp else 1.dp)
                                     ) {
                                         Column(modifier = Modifier.padding(12.dp)) {
                                             Row(
@@ -496,17 +660,40 @@ fun PantallaCentro(
                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Text(
-                                                    text = conv.correoAdoptante,
-                                                    style = MaterialTheme.typography.titleSmall,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = AdoptTextDark
-                                                )
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    Text(
+                                                        text = conv.correoAdoptante,
+                                                        style = MaterialTheme.typography.titleSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onSurface,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    if (tienePendientes) {
+                                                        Surface(
+                                                            shape = RoundedCornerShape(6.dp),
+                                                            color = MaterialTheme.colorScheme.errorContainer
+                                                        ) {
+                                                            val txt = if (conv.mensajesNoLeidos > 99) "99+ nuevo(s)" else "${conv.mensajesNoLeidos} nuevo(s)"
+                                                            Text(
+                                                                text = txt,
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
                                                 if (conv.fecha.isNotBlank()) {
                                                     Text(
                                                         text = conv.fecha,
                                                         style = MaterialTheme.typography.labelSmall,
-                                                        color = AdoptTextSecondary
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                                     )
                                                 }
                                             }
@@ -515,13 +702,13 @@ fun PantallaCentro(
 
                                             Surface(
                                                 shape = RoundedCornerShape(8.dp),
-                                                color = AdoptSurfaceVariant,
+                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
                                                 Text(
                                                     text = conv.ultimoTexto.ifBlank { "Sin mensajes" },
                                                     style = MaterialTheme.typography.bodySmall,
-                                                    color = AdoptTextDark,
+                                                    color = MaterialTheme.colorScheme.onSurface,
                                                     maxLines = 2,
                                                     overflow = TextOverflow.Ellipsis,
                                                     modifier = Modifier.padding(8.dp)
@@ -660,6 +847,50 @@ fun PantallaCentro(
     }
 }
 
+/**
+ * Tarjeta de métrica operativa individual para el panel del centro.
+ */
+@Composable
+private fun TarjetaMetricaCentro(
+    titulo: String,
+    valor: String,
+    icono: String,
+    resaltar: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (resaltar) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(
+                    text = titulo,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = valor,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (resaltar) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Text(text = icono, fontSize = 20.sp)
+        }
+    }
+}
+
 @Composable
 fun DialogoEditarMiCentroConSensibilidad(
     centro: CentroPropietarioDto,
@@ -676,6 +907,7 @@ fun DialogoEditarMiCentroConSensibilidad(
     var latitud by remember { mutableStateOf(centro.latitud) }
     var longitud by remember { mutableStateOf(centro.longitud) }
 
+    var mostrarSelectorMapa by remember { mutableStateOf(false) }
     var errorMensaje by remember { mutableStateOf<String?>(null) }
     var mostrarConfirmacionSensible by remember { mutableStateOf(false) }
 
@@ -687,6 +919,33 @@ fun DialogoEditarMiCentroConSensibilidad(
 
     val cambioUbicacionSensible = (centro.latitud != null) != (latitud != null) || distanciaMetros > 500.0
     val esSensible = (nombreCambiado || cambioUbicacionSensible) && centro.estado.equals("Aprobado", ignoreCase = true)
+
+    if (mostrarSelectorMapa) {
+        DialogoSelectorMapa(
+            latitudInicial = latitud,
+            longitudInicial = longitud,
+            alConfirmarDetallado = { lat, lon, res ->
+                latitud = lat
+                longitud = lon
+                if (res.direccionCompleta.isNotBlank() && !res.direccionCompleta.startsWith("Coordenadas:")) {
+                    direccion = res.direccionCompleta
+                }
+                if (res.distrito.isNotBlank()) {
+                    distrito = res.distrito
+                }
+                mostrarSelectorMapa = false
+            },
+            alConfirmar = { lat, lon, dist ->
+                latitud = lat
+                longitud = lon
+                if (!dist.isNullOrBlank() && distrito.isBlank()) {
+                    distrito = dist
+                }
+                mostrarSelectorMapa = false
+            },
+            alDescartar = { mostrarSelectorMapa = false }
+        )
+    }
 
     AlertDialog(
         onDismissRequest = onDescartar,
@@ -756,6 +1015,20 @@ fun DialogoEditarMiCentroConSensibilidad(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                // Botón selector de mapa para ubicación exacta
+                OutlinedButton(
+                    onClick = { mostrarSelectorMapa = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        if (latitud != null && longitud != null)
+                            String.format(Locale.US, "📍 Coordenadas: %.4f, %.4f", latitud, longitud)
+                        else
+                            "📍 Ubicar en mapa interactivo"
+                    )
+                }
+
                 OutlinedTextField(
                     value = telefono,
                     onValueChange = { telefono = it },
@@ -797,27 +1070,30 @@ fun DialogoEditarMiCentroConSensibilidad(
                         errorMensaje = "Todos los campos obligatorios (*) deben completarse."
                         return@Button
                     }
-
-                    val req = ActualizarMiCentroRequest(
-                        nombre = nombre.trim(),
-                        descripcion = descripcion.trim(),
-                        direccion = direccion.trim(),
-                        distrito = distrito.trim(),
-                        telefono = telefono.trim(),
-                        correoContacto = correoContacto.trim(),
-                        horario = horario.trim(),
-                        latitud = latitud,
-                        longitud = longitud
-                    )
-
                     if (esSensible) {
                         mostrarConfirmacionSensible = true
                     } else {
-                        onGuardar(req, false)
+                        onGuardar(
+                            ActualizarMiCentroRequest(
+                                nombre = nombre.trim(),
+                                descripcion = descripcion.trim(),
+                                direccion = direccion.trim(),
+                                distrito = distrito.trim(),
+                                telefono = telefono.trim(),
+                                correoContacto = correoContacto.trim(),
+                                horario = horario.trim(),
+                                latitud = latitud,
+                                longitud = longitud
+                            ),
+                            false
+                        )
                     }
-                }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (esSensible) MaterialTheme.colorScheme.error else AdoptTeal
+                )
             ) {
-                Text("Guardar cambios")
+                Text(if (esSensible) "Guardar (Pasa a Pendiente)" else "Guardar cambios")
             }
         },
         dismissButton = {
@@ -830,35 +1106,37 @@ fun DialogoEditarMiCentroConSensibilidad(
     if (mostrarConfirmacionSensible) {
         AlertDialog(
             onDismissRequest = { mostrarConfirmacionSensible = false },
-            title = { Text("Confirmar cambio sensible", fontWeight = FontWeight.Bold) },
+            title = { Text("¿Confirmar modificación sensible?", fontWeight = FontWeight.Bold) },
             text = {
-                Text("Al modificar el nombre institucional o la ubicación geográfica, el centro regresará a estado 'Pendiente' y las publicaciones quedarán bloqueadas hasta que el Administrador apruebe los nuevos datos. ¿Deseas continuar?")
+                Text("Al cambiar el nombre institucional o mover la ubicación más de 500 metros, tu centro perderá temporalmente su aprobación activa y volverá a estado PENDIENTE hasta que el administrador verifique los nuevos datos. ¿Deseas continuar?")
             },
             confirmButton = {
                 Button(
                     onClick = {
                         mostrarConfirmacionSensible = false
-                        val req = ActualizarMiCentroRequest(
-                            nombre = nombre.trim(),
-                            descripcion = descripcion.trim(),
-                            direccion = direccion.trim(),
-                            distrito = distrito.trim(),
-                            telefono = telefono.trim(),
-                            correoContacto = correoContacto.trim(),
-                            horario = horario.trim(),
-                            latitud = latitud,
-                            longitud = longitud
+                        onGuardar(
+                            ActualizarMiCentroRequest(
+                                nombre = nombre.trim(),
+                                descripcion = descripcion.trim(),
+                                direccion = direccion.trim(),
+                                distrito = distrito.trim(),
+                                telefono = telefono.trim(),
+                                correoContacto = correoContacto.trim(),
+                                horario = horario.trim(),
+                                latitud = latitud,
+                                longitud = longitud
+                            ),
+                            true
                         )
-                        onGuardar(req, true)
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Confirmar y enviar a revisión")
+                    Text("Sí, enviar a re-evaluación")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { mostrarConfirmacionSensible = false }) {
-                    Text("Cancelar")
+                    Text("Volver")
                 }
             }
         )

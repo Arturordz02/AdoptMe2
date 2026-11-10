@@ -1,5 +1,6 @@
 package com.example.adoptme.screens
 
+import com.example.adoptme.components.DialogoSelectorMapa
 import com.example.adoptme.utils.formatearEdadCanonica
 
 import androidx.compose.foundation.BorderStroke
@@ -452,9 +453,38 @@ fun DialogoEditarMascota(
     var estado by remember { mutableStateOf(mascota.status) }
     var ubicacion by remember { mutableStateOf(mascota.location) }
     var descripcion by remember { mutableStateOf(mascota.description) }
+    var latitud by remember { mutableStateOf(mascota.latitud) }
+    var longitud by remember { mutableStateOf(mascota.longitud) }
+    var mostrarSelectorMapa by remember { mutableStateOf(false) }
 
     var guardando by remember { mutableStateOf(false) }
     var errorMensaje by remember { mutableStateOf<String?>(null) }
+
+    if (mostrarSelectorMapa) {
+        DialogoSelectorMapa(
+            latitudInicial = latitud,
+            longitudInicial = longitud,
+            alConfirmarDetallado = { lat, lon, res ->
+                latitud = lat
+                longitud = lon
+                if (res.direccionCompleta.isNotBlank() && !res.direccionCompleta.startsWith("Coordenadas:")) {
+                    ubicacion = res.direccionCompleta
+                } else if (res.distrito.isNotBlank()) {
+                    ubicacion = res.distrito
+                }
+                mostrarSelectorMapa = false
+            },
+            alConfirmar = { lat, lon, dist ->
+                latitud = lat
+                longitud = lon
+                if (!dist.isNullOrBlank() && ubicacion.isBlank()) {
+                    ubicacion = dist
+                }
+                mostrarSelectorMapa = false
+            },
+            alDescartar = { mostrarSelectorMapa = false }
+        )
+    }
 
     AlertDialog(
         modifier = Modifier.widthIn(max = 520.dp),
@@ -683,6 +713,33 @@ fun DialogoEditarMascota(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (latitud != null && longitud != null) {
+                        Text(
+                            text = String.format(java.util.Locale.US, "📍 Lat: %.4f, Lon: %.4f", latitud, longitud),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.width(1.dp))
+                    }
+                    TextButton(
+                        onClick = { mostrarSelectorMapa = true },
+                        enabled = !guardando
+                    ) {
+                        Text(
+                            text = if (latitud != null) "Cambiar en mapa" else "📍 Fijar en mapa",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // 8. Descripción
@@ -736,7 +793,9 @@ fun DialogoEditarMascota(
                         gender = genero.trim(),
                         status = estado.trim(),
                         location = ubicacion.trim(),
-                        description = descripcion.trim()
+                        description = descripcion.trim(),
+                        latitud = latitud,
+                        longitud = longitud
                     )
 
                     onGuardar(mascotaActualizada) { exito ->

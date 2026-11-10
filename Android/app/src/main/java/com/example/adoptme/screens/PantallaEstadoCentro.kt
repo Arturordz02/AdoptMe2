@@ -262,9 +262,15 @@ private fun ContenidoCentroPorEstado(
                 )
             }
             centro.estado.equals("Aprobado", ignoreCase = true) && !centro.activo -> {
-                TarjetaEstadoInactivo(
-                    centro = centro
-                )
+                if (!centro.motivoSuspension.isNullOrBlank()) {
+                    TarjetaEstadoSuspendido(
+                        centro = centro
+                    )
+                } else {
+                    TarjetaEstadoInactivo(
+                        centro = centro
+                    )
+                }
             }
             else -> {
                 TarjetaEstadoGeneral(centro = centro)
@@ -480,6 +486,93 @@ private fun TarjetaEstadoRechazado(
 }
 
 @Composable
+private fun TarjetaEstadoSuspendido(
+    centro: CentroPropietarioDto
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.2f),
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("⏸️", fontSize = 20.sp)
+                    }
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "Centro suspendido",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        text = "Operación pausada por administración",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+
+            Text(
+                text = "Tu centro cuenta con aprobación institucional, pero sus operaciones se encuentran temporalmente suspendidas por el Administrador:",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = "Motivo de la suspensión:",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = centro.motivoSuspension ?: "Sin motivo especificado.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (!centro.fechaSuspension.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Fecha de suspensión: ${centro.fechaSuspension.substringBefore("T")}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Text(
+                text = "Durante la suspensión, tus publicaciones permanecen en pausa y no es posible registrar nuevas mascotas. Comunícate con la administración para consultar los requisitos de reactivación.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
 private fun TarjetaEstadoInactivo(
     centro: CentroPropietarioDto
 ) {
@@ -494,18 +587,39 @@ private fun TarjetaEstadoInactivo(
             modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFF64748B).copy(alpha = 0.2f),
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("ℹ️", fontSize = 20.sp)
+                    }
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "Centro inactivo",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color(0xFF334155)
+                    )
+                    Text(
+                        text = "Estado operativo inactivo",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF64748B)
+                    )
+                }
+            }
+
             Text(
-                text = "Centro Temporalmente Desactivado",
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF334155)
+                text = "Tu centro se encuentra en estado Aprobado pero actualmente no está activo operativamente. Por favor, comunícate con la administración para su activación.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = "Tu centro se encuentra en estado Aprobado pero ha sido desactivado temporalmente por la administración de la plataforma.",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Text(
-                text = "Durante la suspensión, tus publicaciones se encuentran ocultas del catálogo público y no es posible registrar nuevas mascotas. Por favor, comunícate con soporte o el administrador institucional.",
+                text = "Mientras se encuentre inactivo, tus publicaciones no se mostrarán en el catálogo público y la publicación de mascotas estará pausada.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

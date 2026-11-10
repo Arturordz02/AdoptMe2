@@ -119,13 +119,16 @@ fun PantallaAdministrador(
 
     // Diálogos de control para centros
     var centroParaAprobar by remember { mutableStateOf<CentroAdminDto?>(null) }
-    var centroParaDesactivar by remember { mutableStateOf<CentroAdminDto?>(null) }
+    var centroParaSuspender by remember { mutableStateOf<CentroAdminDto?>(null) }
+    var motivoSuspensionTexto by remember { mutableStateOf("") }
+    var errorMotivoSuspension by remember { mutableStateOf<String?>(null) }
+    var centroParaReactivar by remember { mutableStateOf<CentroAdminDto?>(null) }
     var centroParaRechazar by remember { mutableStateOf<CentroAdminDto?>(null) }
     var motivoRechazoTexto by remember { mutableStateOf("") }
     var errorMotivoRechazo by remember { mutableStateOf<String?>(null) }
-    var centroParaAsignar by remember { mutableStateOf<CentroAdminDto?>(null) }
-    var usuarioIdAsignarTexto by remember { mutableStateOf("") }
-    var errorUsuarioIdAsignar by remember { mutableStateOf<String?>(null) }
+    var centroParaVincular by remember { mutableStateOf<CentroAdminDto?>(null) }
+    var usuarioIdVincularTexto by remember { mutableStateOf("") }
+    var errorUsuarioIdVincular by remember { mutableStateOf<String?>(null) }
 
     // Cargar centros al inicio
     LaunchedEffect(Unit) {
@@ -573,18 +576,18 @@ fun PantallaAdministrador(
                                             motivoRechazoTexto = ""
                                             errorMotivoRechazo = null
                                         },
-                                        alActivar = {
-                                            adminCentrosViewModel.activarCentro(centro.id) { ok, msg ->
-                                                if (ok) mensajeConfirmacion = msg
-                                            }
+                                        alSuspender = {
+                                            centroParaSuspender = centro
+                                            motivoSuspensionTexto = ""
+                                            errorMotivoSuspension = null
                                         },
-                                        alDesactivar = {
-                                            centroParaDesactivar = centro
+                                        alReactivar = {
+                                            centroParaReactivar = centro
                                         },
-                                        alAsignarPropietario = {
-                                            centroParaAsignar = centro
-                                            usuarioIdAsignarTexto = centro.usuarioId?.toString() ?: ""
-                                            errorUsuarioIdAsignar = null
+                                        alVincularResponsable = {
+                                            centroParaVincular = centro
+                                            usuarioIdVincularTexto = ""
+                                            errorUsuarioIdVincular = null
                                         }
                                     )
                                 }
@@ -703,46 +706,98 @@ fun PantallaAdministrador(
         )
     }
 
-    // 1b. Confirmar Desactivación de Centro
-    if (centroParaDesactivar != null) {
-        val c = centroParaDesactivar!!
+    // 1b. Suspender Centro con Justificación Obligatoria
+    if (centroParaSuspender != null) {
+        val c = centroParaSuspender!!
         AlertDialog(
-            onDismissRequest = { centroParaDesactivar = null },
-            title = { Text("Desactivar Centro de Adopción", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error) },
+            onDismissRequest = { centroParaSuspender = null },
+            title = { Text("Suspender Centro de Adopción", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error) },
             text = {
-                Text("¿Confirmas la desactivación de '${c.nombre}' (ID #${c.id})? El centro dejará de ser visible en el catálogo público y en el mapa de adopciones.")
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Ingresa el motivo obligatorio de la suspensión operativa para '${c.nombre}'. El centro dejará de ser visible en el catálogo y no podrá publicar nuevas mascotas:")
+                    OutlinedTextField(
+                        value = motivoSuspensionTexto,
+                        onValueChange = {
+                            motivoSuspensionTexto = it
+                            if (errorMotivoSuspension != null) errorMotivoSuspension = null
+                        },
+                        label = { Text("Motivo de suspensión (mínimo 5 caracteres) *") },
+                        maxLines = 4,
+                        modifier = Modifier.fillMaxWidth(),
+                        isError = errorMotivoSuspension != null
+                    )
+                    errorMotivoSuspension?.let { err ->
+                        Text(err, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
             },
             confirmButton = {
                 Button(
                     onClick = {
+                        if (motivoSuspensionTexto.trim().length < 5) {
+                            errorMotivoSuspension = "El motivo debe contener al menos 5 caracteres explicativos."
+                            return@Button
+                        }
+                        val mot = motivoSuspensionTexto.trim()
                         val cid = c.id
-                        centroParaDesactivar = null
-                        adminCentrosViewModel.desactivarCentro(cid) { ok, msg ->
+                        centroParaSuspender = null
+                        adminCentrosViewModel.suspenderCentro(cid, mot) { ok, msg ->
                             if (ok) mensajeConfirmacion = msg
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Desactivar centro")
+                    Text("Suspender centro")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { centroParaDesactivar = null }) {
+                TextButton(onClick = { centroParaSuspender = null }) {
                     Text("Cancelar")
                 }
             }
         )
     }
 
-    // 2. Rechazar Centro con Justificación Obligatoria
+    // 1c. Reactivar Centro Suspendido / Inactivo
+    if (centroParaReactivar != null) {
+        val c = centroParaReactivar!!
+        AlertDialog(
+            onDismissRequest = { centroParaReactivar = null },
+            title = { Text("Reactivar Centro de Adopción", fontWeight = FontWeight.Bold, color = AdoptTeal) },
+            text = {
+                Text("¿Confirmas la reactivación de '${c.nombre}' (ID #${c.id})? El centro volverá a estar activo en el catálogo público y sus publicaciones pausadas se reanudarán.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val cid = c.id
+                        centroParaReactivar = null
+                        adminCentrosViewModel.reactivarCentro(cid) { ok, msg ->
+                            if (ok) mensajeConfirmacion = msg
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AdoptTeal)
+                ) {
+                    Text("Reactivar centro")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { centroParaReactivar = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // 2. Rechazar Solicitud de Centro con Justificación Obligatoria
     if (centroParaRechazar != null) {
         val c = centroParaRechazar!!
         AlertDialog(
             onDismissRequest = { centroParaRechazar = null },
-            title = { Text("Rechazar Centro de Adopción", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error) },
+            title = { Text("Rechazar Solicitud de Centro", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Ingresa el motivo obligatorio del rechazo para '${c.nombre}'. El responsable del centro verá esta justificación en su pantalla para corregir la solicitud:")
+                    Text("Ingresa el motivo obligatorio del rechazo de solicitud para '${c.nombre}'. El responsable del centro verá esta justificación en su pantalla para corregir su solicitud:")
                     OutlinedTextField(
                         value = motivoRechazoTexto,
                         onValueChange = {
@@ -775,7 +830,7 @@ fun PantallaAdministrador(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Rechazar con motivo")
+                    Text("Rechazar solicitud")
                 }
             },
             dismissButton = {
@@ -786,27 +841,27 @@ fun PantallaAdministrador(
         )
     }
 
-    // 3. Asignar Propietario al Centro
-    if (centroParaAsignar != null) {
-        val c = centroParaAsignar!!
+    // 3. Vincular Responsable al Centro (1:1)
+    if (centroParaVincular != null) {
+        val c = centroParaVincular!!
         AlertDialog(
-            onDismissRequest = { centroParaAsignar = null },
-            title = { Text("Asignar Propietario", fontWeight = FontWeight.Bold) },
+            onDismissRequest = { centroParaVincular = null },
+            title = { Text("Vincular Usuario Responsable", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Asigna o transfiere la titularidad de '${c.nombre}' a un usuario con rol 'Centro':")
+                    Text("Vincula un usuario con rol 'Centro' que no tenga otro centro asignado a '${c.nombre}':")
                     OutlinedTextField(
-                        value = usuarioIdAsignarTexto,
+                        value = usuarioIdVincularTexto,
                         onValueChange = {
-                            usuarioIdAsignarTexto = it
-                            if (errorUsuarioIdAsignar != null) errorUsuarioIdAsignar = null
+                            usuarioIdVincularTexto = it
+                            if (errorUsuarioIdVincular != null) errorUsuarioIdVincular = null
                         },
                         label = { Text("ID numérico de Usuario *") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        isError = errorUsuarioIdAsignar != null
+                        isError = errorUsuarioIdVincular != null
                     )
-                    errorUsuarioIdAsignar?.let { err ->
+                    errorUsuarioIdVincular?.let { err ->
                         Text(err, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
                 }
@@ -814,24 +869,28 @@ fun PantallaAdministrador(
             confirmButton = {
                 Button(
                     onClick = {
-                        val uid = usuarioIdAsignarTexto.trim().toIntOrNull()
+                        val uid = usuarioIdVincularTexto.trim().toIntOrNull()
                         if (uid == null || uid <= 0) {
-                            errorUsuarioIdAsignar = "Ingresa un ID numérico de usuario válido."
+                            errorUsuarioIdVincular = "Ingresa un ID numérico de usuario válido."
                             return@Button
                         }
                         val cid = c.id
-                        centroParaAsignar = null
-                        adminCentrosViewModel.asignarPropietario(cid, uid) { ok, msg ->
-                            if (ok) mensajeConfirmacion = msg
+                        centroParaVincular = null
+                        adminCentrosViewModel.vincularResponsable(cid, uid) { ok, msg ->
+                            if (ok) {
+                                mensajeConfirmacion = msg
+                            } else {
+                                mensajeValidacion = msg
+                            }
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AdoptTeal)
                 ) {
-                    Text("Asignar titular")
+                    Text("Vincular")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { centroParaAsignar = null }) {
+                TextButton(onClick = { centroParaVincular = null }) {
                     Text("Cancelar")
                 }
             }
@@ -954,9 +1013,9 @@ fun TarjetaAdminCentroItem(
     estaOperando: Boolean,
     alAprobar: () -> Unit,
     alRechazar: () -> Unit,
-    alActivar: () -> Unit,
-    alDesactivar: () -> Unit,
-    alAsignarPropietario: () -> Unit
+    alSuspender: () -> Unit,
+    alReactivar: () -> Unit,
+    alVincularResponsable: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1007,10 +1066,12 @@ fun TarjetaAdminCentroItem(
                 }
 
                 // Insignia de Estado
-                val (colorBg, colorTxt) = when (centro.estado.lowercase()) {
-                    "aprobado" -> StatusGreenBg to StatusGreenText
-                    "rechazado" -> StatusRedBg to StatusRedText
-                    else -> AdoptOrangeLight to StatusOrangeText
+                val (colorBg, colorTxt, textoEstado) = when {
+                    centro.estado.equals("Pendiente", ignoreCase = true) -> Triple(AdoptOrangeLight, StatusOrangeText, "Pendiente")
+                    centro.estado.equals("Rechazado", ignoreCase = true) -> Triple(StatusRedBg, StatusRedText, "Rechazado")
+                    centro.estado.equals("Aprobado", ignoreCase = true) && centro.activo -> Triple(StatusGreenBg, StatusGreenText, "Aprobado")
+                    centro.estado.equals("Aprobado", ignoreCase = true) && !centro.activo && !centro.motivoSuspension.isNullOrBlank() -> Triple(StatusRedBg, StatusRedText, "Suspendido")
+                    else -> Triple(Color(0xFFE2E8F0), Color(0xFF475569), "Inactivo")
                 }
 
                 Surface(
@@ -1018,7 +1079,7 @@ fun TarjetaAdminCentroItem(
                     color = colorBg
                 ) {
                     Text(
-                        text = centro.estado,
+                        text = textoEstado,
                         color = colorTxt,
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.labelSmall,
@@ -1037,19 +1098,27 @@ fun TarjetaAdminCentroItem(
             ) {
                 Column(modifier = Modifier.padding(8.dp)) {
                     Text(
-                        text = "Responsable: ${centro.nombreResponsable ?: "Sin asignar"} · Correo: ${centro.correoResponsable ?: "N/A"}",
+                        text = "Responsable: ${centro.nombreResponsable ?: "Sin vincular"} · Correo: ${centro.correoResponsable ?: "N/A"}",
                         style = MaterialTheme.typography.labelSmall,
                         color = AdoptTextDark
                     )
                     Text(
-                        text = "Activo: ${if (centro.activo) "Sí (Visible)" else "No (Oculto)"} · Demostrativo: ${if (centro.esDemostrativo) "Sí" else "No"} · Mascotas: ${centro.totalMascotasPublicadas}",
+                        text = "Activo: ${if (centro.activo) "Sí (Visible)" else "No (Pausado)"} · Demostrativo: ${if (centro.esDemostrativo) "Sí" else "No"} · Mascotas: ${centro.totalMascotasPublicadas}",
                         style = MaterialTheme.typography.labelSmall,
                         color = AdoptTextSecondary
                     )
-                    if (!centro.motivoRechazo.isNullOrBlank()) {
+                    if (!centro.motivoSuspension.isNullOrBlank()) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Motivo de rechazo previo: ${centro.motivoRechazo}",
+                            text = "Motivo de suspensión: ${centro.motivoSuspension}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = StatusRedText,
+                            fontWeight = FontWeight.Medium
+                        )
+                    } else if (!centro.motivoRechazo.isNullOrBlank() && centro.estado.equals("Rechazado", ignoreCase = true)) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Motivo de rechazo: ${centro.motivoRechazo}",
                             style = MaterialTheme.typography.labelSmall,
                             color = StatusRedText,
                             fontWeight = FontWeight.Medium
@@ -1065,7 +1134,7 @@ fun TarjetaAdminCentroItem(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                if (!centro.estado.equals("Aprobado", ignoreCase = true)) {
+                if (centro.estado.equals("Pendiente", ignoreCase = true)) {
                     Button(
                         onClick = alAprobar,
                         enabled = !estaOperando,
@@ -1075,9 +1144,7 @@ fun TarjetaAdminCentroItem(
                     ) {
                         Text("Aprobar", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
-                }
 
-                if (!centro.estado.equals("Rechazado", ignoreCase = true)) {
                     OutlinedButton(
                         onClick = alRechazar,
                         enabled = !estaOperando,
@@ -1089,33 +1156,39 @@ fun TarjetaAdminCentroItem(
                     }
                 }
 
-                if (centro.activo) {
-                    OutlinedButton(
-                        onClick = alDesactivar,
-                        enabled = !estaOperando,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("Desactivar", fontSize = 11.sp)
-                    }
-                } else {
-                    OutlinedButton(
-                        onClick = alActivar,
-                        enabled = !estaOperando,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("Activar", fontSize = 11.sp)
+                if (centro.estado.equals("Aprobado", ignoreCase = true)) {
+                    if (centro.activo) {
+                        OutlinedButton(
+                            onClick = alSuspender,
+                            enabled = !estaOperando,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("Suspender", fontSize = 11.sp)
+                        }
+                    } else {
+                        Button(
+                            onClick = alReactivar,
+                            enabled = !estaOperando,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = AdoptTeal)
+                        ) {
+                            Text("Reactivar", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
 
-                OutlinedButton(
-                    onClick = alAsignarPropietario,
-                    enabled = !estaOperando,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("Asignar", fontSize = 11.sp)
+                if (centro.usuarioId == null) {
+                    OutlinedButton(
+                        onClick = alVincularResponsable,
+                        enabled = !estaOperando,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Vincular", fontSize = 11.sp)
+                    }
                 }
             }
         }
