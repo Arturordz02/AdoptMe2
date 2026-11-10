@@ -1,111 +1,75 @@
-﻿================================================================================
-                    ADOPTME - ENTREGA DE AVANCE DE PROYECTO
+================================================================================
+                    ADOPTME - PLATAFORMA DE ADOPCIÓN RESPONSABLE
 ================================================================================
 
-1. CONTENIDO DEL PAQUETE
+1. ARQUITECTURA TÉCNICA OFICIAL
 --------------------------------------------------------------------------------
-Este archivo ZIP contiene el código fuente completo del proyecto AdoptMe:
+AdoptMe es una plataforma integral para la adopción responsable de mascotas,
+desarrollada con una arquitectura cliente-servidor desacoplada:
 
-- Android/  : Proyecto completo para Android Studio en Kotlin y Jetpack Compose.
-- Backend/  : Solución completa Web API en ASP.NET Core 8 (.NET 8).
-- LEEME.txt : Documento informativo sobre estructura, apertura y estado del avance.
+- Frontend Android:
+  * Lenguaje: Kotlin.
+  * Interfaz de usuario: Jetpack Compose declarativo y Material 3.
+  * Identificador de aplicación: com.example.adoptme.
+  * Conectividad HTTP: Retrofit 2 + OkHttp 4 + Gson Converter.
+  * Carga de imágenes: Coil Compose.
+  * Mapas y geolocalización: Google Maps Platform (Play Services Maps + Maps Compose).
+  * Base de datos local: Room Database (MascotaVisitada) + Jetpack DataStore + SharedPreferences.
+  * Chat y notificaciones: Locales al dispositivo, con persistencia aislada por cuenta de usuario.
+
+- Backend Web API:
+  * Framework: ASP.NET Core 8 Web API (.NET 8.0).
+  * Servidor en producción: Render Web Service (https://adoptme2.onrender.com/).
+  * Base de datos en la nube: PostgreSQL 16 hospedado en Neon Serverless.
+  * Almacenamiento multimedia: Cloudinary para imágenes persistentes de mascotas y logos.
+  * Autenticación y Autorización: JWT Bearer multirol (Adoptante, Centro, Administrador).
+  * Documentación interactiva: Swagger / OpenAPI.
+
+- Aclaraciones de infraestructura:
+  * Firebase: NO se utiliza en el proyecto.
+  * Azure: NO forma parte de la arquitectura final del proyecto.
 
 
-2. GUIA DE APERTURA Y EJECUCION
+2. GUÍA DE APERTURA Y EJECUCIÓN
 --------------------------------------------------------------------------------
 A. PROYECTO ANDROID (Carpeta "Android"):
-   - Abrir Android Studio (Hedgehog, Koala, Ladybug o superior).
-   - Seleccionar "Open" y elegir la carpeta "Android" de este paquete.
-   - Requisito: JDK 17 o superior configurado en Android Studio.
-   - Android Studio descargará automáticamente las dependencias de Gradle y
-     generará el archivo "local.properties" con la ruta local de tu SDK.
-   - La aplicación ya viene configurada para conectarse por defecto a la API
-     desplegada en Azure por HTTPS mediante Retrofit.
+   - Abrir Android Studio (Ladybug, Koala, Meerkat o superior).
+   - Seleccionar "Open" y elegir la carpeta "Android" del repositorio.
+   - Requisito: JDK 17 o JDK 21 configurado como Gradle JDK.
+   - Entorno de ejecución:
+     * Por defecto, la aplicación se compila y ejecuta apuntando directamente
+       a la API en la nube (https://adoptme2.onrender.com/). No requiere
+       iniciar dotnet localmente ni ejecutar 'adb reverse'.
+     * La variante Release siempre apunta obligatoriamente a Render.
+     * Modo local opcional (opt-in): para depurar contra un backend ASP.NET local
+       en http://127.0.0.1:5217/, se debe compilar explícitamente con el parámetro:
+       -PusarBackendLocal=true
 
 B. PROYECTO BACKEND (Carpeta "Backend"):
-   - Abrir "Backend/AdoptMe.Api.slnx" en Visual Studio 2022 o abrir la carpeta
-     "Backend/AdoptMe.Api" en Visual Studio Code.
+   - Abrir "Backend/AdoptMe.sln" en Visual Studio 2022 o VS Code.
    - Requisito: .NET 8.0 SDK instalado.
-   - Para compilar desde terminal:
-     dotnet build
-   - Nota sobre ejecucion local del backend:
-     Por motivos de seguridad, la clave secreta JWT (Jwt:Key) y la cadena de
-     conexion real a Azure SQL no se incluyen en este paquete. Para ejecutar el
-     backend localmente, cada desarrollador debe configurar su propia clave JWT
-     de al menos 32 caracteres y su cadena de conexion a base de datos (por
-     ejemplo usando 'dotnet user-secrets' o variables de entorno locales).
-     No se garantiza el funcionamiento del backend en local sin configurar
-     dichos parametros privados.
+   - Compilación y ejecución de pruebas:
+     dotnet build Backend/AdoptMe.sln
+     dotnet test Backend/AdoptMe.sln
 
 
-3. API EN AZURE Y VERIFICACION JWT
+3. ROLES Y FUNCIONALIDADES DEL SISTEMA
 --------------------------------------------------------------------------------
-- La API backend se encuentra desplegada y operativa en produccion en Azure:
-  https://adoptme-api-bzc8h7fdb3hcccac.westus3-01.azurewebsites.net
+- Adoptante:
+  * Catálogo público de mascotas con filtrado por especie, ubicación y edad.
+  * Mapa interactivo de centros de adopción y mascotas geolocalizadas.
+  * Formulario de solicitud de adopción responsable y test de compatibilidad.
+  * Bandeja local de notificaciones y mensajería directa con centros de adopción.
 
-- Estado de verificacion en la nube:
-  * Registro y login operativos contra Azure SQL.
-  * Emision de tokens JWT firmados con vigencia de 2 horas.
-  * El endpoint protegido 'GET /api/Usuarios/sesion' con [Authorize] fue
-    desplegado y verificado exitosamente en Azure:
-    - Peticion sin token: devuelve HTTP 401 Unauthorized.
-    - Peticion con token falso/alterado: devuelve HTTP 401 Unauthorized.
-    - Peticion con token JWT valido obtenido en login: devuelve HTTP 200 OK
-      y confirma la identidad del correo autenticado.
+- Centro de Adopción:
+  * Registro institucional diferenciado y gestión de perfil.
+  * Publicación de mascotas vinculadas al centro con fotografía persistente en Cloudinary.
+  * Panel operativo con métricas institucionales y bandeja de postulaciones.
+  * Notificaciones de estado de aprobación o suspensión operativa.
 
-
-4. ESTADO REAL DEL PROYECTO
---------------------------------------------------------------------------------
-A. FUNCIONALIDADES IMPLEMENTADAS Y PROBADAS:
-   [Backend]
-   - Modelos de datos (Usuario, Mascota) y DTOs de autenticacion.
-   - Hashing criptografico de contrasenas mediante IPasswordHasher<Usuario>.
-   - Generacion y validacion de tokens JWT con claims de identidad y rol.
-   - Endpoint protegido 'GET /api/Usuarios/sesion' probado y validado en Azure.
-   - Endpoints de consulta de catalogo 'GET /api/Mascotas' y 'GET /api/Mascotas/{id}'.
-
-   [Android]
-   - Arquitectura declarativa con Jetpack Compose y Material 3.
-   - Navegacion por perfiles de usuario (Adoptante, Centro, Administrador).
-   - Pantallas de Catalogo, Detalle de Mascota, Favoritos y Notificaciones.
-   - Sistema de preferencias de usuario (tema claro/oscuro, colores y tamano de texto).
-   - Cliente HTTP Retrofit configurado hacia Azure con conversor Gson y logging.
-   - Pantallas de Registro e Inicio de Sesion conectadas a la API de Azure.
-   - Recepcion y mantenimiento en memoria del token JWT durante la sesion activa.
-   - Carga reactiva del listado de mascotas desde la API de Azure.
-
-B. FUNCIONALIDADES PENDIENTES / EN DESARROLLO:
-   - Las operaciones de creacion, edicion y eliminacion de mascotas en la API
-     estan actualmente reservadas ([NonAction]) y deben habilitarse en el backend.
-   - En Android, las solicitudes de adopcion y creacion de publicaciones aun
-     se gestionan mediante almacenamiento local (AppStorage/SharedPreferences) y
-     deben conectarse a la API REST.
-   - La persistencia segura del JWT en almacenamiento local de Android (ej.
-     EncryptedSharedPreferences/DataStore) y el AuthInterceptor de OkHttp para
-     enviar el token automaticamente en cada peticion protegida estan pendientes.
-   - Validacion automatica de la vigencia de sesion en el arranque de la app.
-   - No existe integracion de Firebase en el estado actual.
-
-
-5. REQUISITOS REALES DE LAS PRACTICAS (PC08, PC09 Y PC10)
---------------------------------------------------------------------------------
-- PC08 (Integracion con API REST, definicion de endpoints, contratos JSON y
-  consumo con Retrofit):
-  * Estado: IMPLEMENTADO Y EN AVANCE.
-  * Se definieron los contratos JSON (DTOs) en backend y data classes en Kotlin.
-  * Se consumen los endpoints de registro, login y obtencion de mascotas via
-    Retrofit desde la app hacia Azure App Service.
-
-- PC09 (Operaciones CRUD mediante API REST, manejo de errores, estados de
-  carga y conectividad):
-  * Estado: PENDIENTE.
-  * Requiere habilitar el CRUD completo (POST, PUT, DELETE) en la API REST y
-    conectarlo desde las pantallas correspondientes de Android.
-  * Requiere estandarizar el manejo visual de errores HTTP en la UI, estados de
-    carga (indicadores de progreso) y deteccion de estado de conexion.
-
-- PC10 (Integracion con Firebase):
-  * Estado: PENDIENTE.
-  * Requiere la integracion con servicios de Firebase (Firebase Authentication,
-    Cloud Firestore o Firebase Storage), segun la definicion y alcance del proyecto.
+- Administrador:
+  * Revisión y aprobación / rechazo justificado de solicitudes de centros.
+  * Suspensión operativa formal de centros con motivo obligatorio y registro de auditoría.
+  * Reactivación administrativa de centros suspendidos.
+  * Vinculación responsable 1:1 de usuarios titulares a centros sin propietario.
 ================================================================================
