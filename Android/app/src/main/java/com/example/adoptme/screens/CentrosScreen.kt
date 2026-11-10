@@ -3,27 +3,29 @@ package com.example.adoptme.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -31,78 +33,28 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.SubcomposeAsyncImage
+import coil.request.ImageRequest
 import com.example.adoptme.R
 import com.example.adoptme.model.CentroAdopcion
-
-typealias CentroAdopcionDemo = CentroAdopcion
-
-val CentrosDemostrativos = listOf(
-    CentroAdopcionDemo(
-        id = 1,
-        nombre = "Albergue Huellitas del Norte - Lima (Demo)",
-        ubicacion = "San Juan de Lurigancho, Lima",
-        descripcion = "Espacio comunitario en SJL dedicado al cuidado y bienestar de perros y gatos rescatados en espera de una familia responsable.",
-        horarioAtencion = "Lunes a Viernes de 9:00 a 17:00",
-        contactoEjemplo = "huellitas.norte.demo@ejemplo.pe",
-        direccionEjemplo = "Av. Próceres de la Independencia 1402, SJL (Dirección ficticia)",
-        latitud = -12.0089,
-        longitud = -77.0042
-    ),
-    CentroAdopcionDemo(
-        id = 2,
-        nombre = "Refugio Patitas Felices Surco (Demo)",
-        ubicacion = "Santiago de Surco, Lima",
-        descripcion = "Albergue demostrativo en Surco con programa de socialización y seguimiento post-adopción para mascotas rescatadas.",
-        horarioAtencion = "Martes a Sábado de 10:00 a 18:00",
-        contactoEjemplo = "patitas.surco.demo@ejemplo.pe",
-        direccionEjemplo = "Calle Monte Rosa 180, Santiago de Surco (Dirección ficticia)",
-        latitud = -12.1384,
-        longitud = -76.9856
-    ),
-    CentroAdopcionDemo(
-        id = 3,
-        nombre = "Centro de Adopción Miraflores (Demo)",
-        ubicacion = "Miraflores, Lima",
-        descripcion = "Iniciativa ficticia en Miraflores enfocada en la sensibilización vecinal y adopción responsable de mascotas en buen estado de salud.",
-        horarioAtencion = "Lunes a Domingo de 10:00 a 16:00",
-        contactoEjemplo = "adopcion.miraflores.demo@ejemplo.pe",
-        direccionEjemplo = "Av. Larco 345, Miraflores (Dirección ficticia)",
-        latitud = -12.1221,
-        longitud = -77.0305
-    ),
-    CentroAdopcionDemo(
-        id = 4,
-        nombre = "Hogar Temporal Ate Vitarte (Demo)",
-        ubicacion = "Ate Vitarte, Lima",
-        descripcion = "Red de hogares de tránsito en Ate que acoge animales rescatados de la calle mientras encuentran familia definitiva.",
-        horarioAtencion = "Miércoles a Domingo de 11:00 a 17:00",
-        contactoEjemplo = "hogar.ate.demo@ejemplo.pe",
-        direccionEjemplo = "Av. Nicolás Ayllón 2890, Ate (Dirección ficticia)",
-        latitud = -12.0461,
-        longitud = -76.9214
-    ),
-    CentroAdopcionDemo(
-        id = 5,
-        nombre = "Módulo Animal Comas (Demo)",
-        ubicacion = "Comas, Lima",
-        descripcion = "Módulo demostrativo en Comas para atención preventiva, resguardo temporal y coordinación de adopciones en la zona norte de Lima.",
-        horarioAtencion = "Lunes a Viernes de 8:30 a 16:30",
-        contactoEjemplo = "modulo.comas.demo@ejemplo.pe",
-        direccionEjemplo = "Av. Universitaria Norte 4500, Comas (Dirección ficticia)",
-        latitud = -11.9325,
-        longitud = -77.0542
-    )
-)
+import com.example.adoptme.model.CentroPublicoDto
+import com.example.adoptme.model.toCentroAdopcion
+import com.example.adoptme.viewmodel.CentrosUiState
+import com.example.adoptme.viewmodel.CentrosViewModel
 
 @Composable
 fun CentrosScreen(
@@ -114,10 +66,13 @@ fun CentrosScreen(
         ubicacion: String
     ) -> Unit = { _, _, _, _ -> },
     abrirMapa: () -> Unit = {},
+    viewModel: CentrosViewModel = remember { CentrosViewModel() },
     modifier: Modifier = Modifier
 ) {
-    var centroParaDetalle by remember { mutableStateOf<CentroAdopcionDemo?>(null) }
-    var centroParaContactar by remember { mutableStateOf<CentroAdopcionDemo?>(null) }
+    val uiState by viewModel.uiState.collectAsState()
+
+    var centroParaDetalle by remember { mutableStateOf<CentroPublicoDto?>(null) }
+    var centroParaContactar by remember { mutableStateOf<CentroPublicoDto?>(null) }
 
     Column(
         modifier = modifier
@@ -127,195 +82,162 @@ fun CentrosScreen(
             .navigationBarsPadding()
             .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
-        // Botón superior de regreso a Inicio
+        // Botón superior de regreso
         TextButton(
             onClick = volver,
             modifier = Modifier.padding(bottom = 4.dp)
         ) {
             Text(
-                text = "← Volver a Inicio",
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary
+                text = "← Volver al Inicio",
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.labelLarge
             )
         }
 
         // Título de la pantalla
         Text(
-            text = "🏡 Centros de Adopción",
-            style = MaterialTheme.typography.headlineMedium,
+            text = "Centros de Adopción",
+            style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
+            color = MaterialTheme.colorScheme.onBackground
         )
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // Indicador obligatorio de prototipo
-        Surface(
-            shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
-            modifier = Modifier.padding(vertical = 6.dp)
-        ) {
-            Text(
-                text = "ℹ️ Información demostrativa del prototipo",
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-            )
-        }
+        Text(
+            text = "Centros y albergues verificados por el equipo administrativo de AdoptMe.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
-        // Botón para ver en el mapa interactivo
-        Button(
-            onClick = abrirMapa,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_center),
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = androidx.compose.ui.graphics.Color.White
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("🗺️ Ver centros y mascotas en el mapa", fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color.White)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Lista de centros demostrativos
-        LazyColumn(
-            contentPadding = PaddingValues(bottom = 88.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            items(
-                items = CentrosDemostrativos,
-                key = { it.id }
-            ) { centro ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        when (val state = uiState) {
+            is CentrosUiState.Cargando -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Encabezado del centro
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = centro.nombre,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-
-                        // Ubicación
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "📍 ${centro.ubicacion}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-
-                        // Dirección de ejemplo
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "🏠 Dirección: ${centro.direccionEjemplo}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        // Descripción breve
-                        Text(
-                            text = centro.descripcion,
+                            text = "Cargando centros de adopción...",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-
-                        // Horario de atención
-                        Text(
-                            text = "🕒 Horario: ${centro.horarioAtencion}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        // Contacto de ejemplo
-                        Text(
-                            text = "✉️ Contacto: ${centro.contactoEjemplo}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        // Botones de acción
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    }
+                }
+            }
+            is CentrosUiState.Error -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            OutlinedButton(
-                                onClick = { centroParaDetalle = centro },
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.primary
-                                ),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text(
-                                    text = "Ver centro",
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-
+                            Text("⚠️", fontSize = 32.sp)
+                            Text(
+                                text = "No se pudieron cargar los centros",
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                text = state.mensaje,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
                             Button(
-                                onClick = {
+                                onClick = { viewModel.reintentar() },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                            ) {
+                                Text("Reintentar")
+                            }
+                        }
+                    }
+                }
+            }
+            is CentrosUiState.Exito -> {
+                if (state.centros.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text("🏡", fontSize = 36.sp)
+                                Text(
+                                    text = "No hay centros disponibles",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Text(
+                                    text = "Actualmente no existen centros de adopción aprobados y activos en esta sección.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                                Button(
+                                    onClick = { viewModel.reintentar() }
+                                ) {
+                                    Text("Actualizar")
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(vertical = 4.dp)
+                    ) {
+                        items(
+                            items = state.centros,
+                            key = { it.id }
+                        ) { centro ->
+                            TarjetaCentroPublico(
+                                centro = centro,
+                                alTocarDetalle = { centroParaDetalle = centro },
+                                alTocarContactar = {
                                     abrirChat(
                                         centro.id,
                                         centro.nombre,
-                                        "centro@adoptme.com",
-                                        centro.ubicacion
+                                        centro.correoContacto.ifBlank { "contacto@centro${centro.id}.pe" },
+                                        centro.distrito.ifBlank { centro.direccion }
                                     )
                                 },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary
-                                ),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.ic_chat),
-                                        contentDescription = null,
-                                        modifier = Modifier.padding(end = 6.dp).size(18.dp)
-                                    )
-                                    Text(
-                                        text = "Chatear",
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
-                            }
+                                alTocarVerEnMapa = abrirMapa
+                            )
                         }
                     }
                 }
@@ -323,56 +245,57 @@ fun CentrosScreen(
         }
     }
 
-    // Diálogo "Ver centro"
+    // Diálogo "Detalle del centro"
     if (centroParaDetalle != null) {
-        val centro = centroParaDetalle!!
+        val c = centroParaDetalle!!
         AlertDialog(
             onDismissRequest = { centroParaDetalle = null },
             title = {
                 Text(
-                    text = centro.nombre,
+                    text = c.nombre,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                    ) {
-                        Text(
-                            text = "Información demostrativa del prototipo",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
+                    if (c.esDemostrativo) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                        ) {
+                            Text(
+                                text = "Albergue Demostrativo",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
                     }
                     Text(
-                        text = "📍 Ubicación: ${centro.ubicacion}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        text = "📍 Distrito: ${c.distrito.ifBlank { "No especificado" }}",
+                        style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        text = "🏠 Dirección: ${centro.direccionEjemplo}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "🏠 Dirección: ${c.direccion.ifBlank { "No especificada" }}",
+                        style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        text = "🕒 Horario de atención: ${centro.horarioAtencion}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "🕒 Horario: ${c.horario.ifBlank { "No especificado" }}",
+                        style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        text = "✉️ Contacto: ${centro.contactoEjemplo}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "📞 Teléfono: ${c.telefono.ifBlank { "No especificado" }}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = "✉️ Correo: ${c.correoContacto.ifBlank { "No especificado" }}",
+                        style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = centro.descripcion,
+                        text = c.descripcion,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -394,71 +317,156 @@ fun CentrosScreen(
             containerColor = MaterialTheme.colorScheme.surface
         )
     }
+}
 
-    // Diálogo "Contactar"
-    if (centroParaContactar != null) {
-        val centro = centroParaContactar!!
-        AlertDialog(
-            onDismissRequest = { centroParaContactar = null },
-            title = {
-                Text(
-                    text = "Contactar al centro",
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
-                    ) {
-                        Text(
-                            text = "Información demostrativa del prototipo",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+@Composable
+fun TarjetaCentroPublico(
+    centro: CentroPublicoDto,
+    alTocarDetalle: () -> Unit,
+    alTocarContactar: () -> Unit,
+    alTocarVerEnMapa: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val contexto = LocalContext.current
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Logotipo remoto con Coil o placeholder institucional
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!centro.logoUrl.isNullOrBlank()) {
+                        SubcomposeAsyncImage(
+                            model = ImageRequest.Builder(contexto)
+                                .data(centro.logoUrl)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "Logo de ${centro.nombre}",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                            loading = {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            error = {
+                                Text("🏡", fontSize = 24.sp)
+                            }
                         )
+                    } else {
+                        Text("🏡", fontSize = 24.sp)
                     }
+                }
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Centro: ${centro.nombre}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        text = centro.nombre,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Para coordinar visitas o consultas sobre mascotas en adopción, utiliza este canal de contacto de ejemplo:",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "✉️ Canal: ${centro.contactoEjemplo}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "🕒 Horario sugerido: ${centro.horarioAtencion}",
+                        text = if (centro.distrito.isNotBlank()) "📍 ${centro.distrito}" else "📍 Lima",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
                     )
+                    if (centro.esDemostrativo) {
+                        Text(
+                            text = "Albergue Demostrativo",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.secondary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
-            },
-            confirmButton = {
-                Button(
-                    onClick = { centroParaContactar = null },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    ),
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = centro.descripcion,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (centro.horario.isNotBlank()) {
+                Text(
+                    text = "🕒 ${centro.horario}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (centro.telefono.isNotBlank()) {
+                Text(
+                    text = "📞 ${centro.telefono}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Botones de acción
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = alTocarDetalle,
+                    modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text("Entendido")
+                    Text("Detalle", fontSize = 12.sp)
                 }
-            },
-            shape = RoundedCornerShape(16.dp),
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+
+                if (centro.latitud != null && centro.longitud != null) {
+                    OutlinedButton(
+                        onClick = alTocarVerEnMapa,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Ver en mapa", fontSize = 12.sp)
+                    }
+                }
+
+                Button(
+                    onClick = alTocarContactar,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("Chat", fontSize = 12.sp)
+                }
+            }
+        }
     }
 }

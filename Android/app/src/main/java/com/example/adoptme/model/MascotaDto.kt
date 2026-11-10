@@ -15,5 +15,6 @@ data class MascotaDto(
     val creadoPorCorreo: String = "",
     val fechaCreacion: String? = null,
     val latitud: Double? = null,
-    val longitud: Double? = null
+    val longitud: Double? = null,
+    val centroId: Int? = null
 )

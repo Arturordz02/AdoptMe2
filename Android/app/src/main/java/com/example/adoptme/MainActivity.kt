@@ -39,9 +39,13 @@ import com.example.adoptme.repository.sincronizarPublicacionesUsuario
 import com.example.adoptme.screens.PantallaAdministrador
 import com.example.adoptme.screens.PantallaCentro
 import com.example.adoptme.screens.PantallaChat
+import com.example.adoptme.screens.PantallaEstadoCentro
 import com.example.adoptme.screens.PantallaInicioSesion
 import com.example.adoptme.screens.PantallaPrincipalAdoptante
+import com.example.adoptme.screens.PantallaPublicarMascota
 import com.example.adoptme.screens.PantallaRegistro
+import com.example.adoptme.viewmodel.MiCentroViewModel
+import com.example.adoptme.viewmodel.AdminCentrosViewModel
 import com.example.adoptme.model.UsuarioRegistrado
 import com.example.adoptme.ui.theme.AdoptMeTheme
 import java.text.SimpleDateFormat
@@ -60,8 +64,14 @@ class MainActivity : ComponentActivity() {
         val preferencias = Preferencias(applicationContext)
         val catalogoDataStore = CatalogoDataStore.obtenerInstancia(applicationContext)
 
-        // NUEVO: Conectar Retrofit con SharedPreferences para usar el Token JWT
+        // Conectar Retrofit con SharedPreferences para usar el Token JWT
         RetrofitClient.preferencias = preferencias
+        // Configuración determinista: en debug conecta a URL local si está habilitado
+        if (com.example.adoptme.BuildConfig.DEBUG && com.example.adoptme.BuildConfig.PERMITIR_URL_DEV && RetrofitClient.URL_LOCAL_DEV.isNotBlank()) {
+            RetrofitClient.configurarBaseUrl(RetrofitClient.URL_LOCAL_DEV)
+        } else {
+            RetrofitClient.restaurarBaseUrlProduccion()
+        }
 
         // Migración idempotente de claves globales antiguas
         almacenamientoApp.migrarDatosAntiguosSiExisten()
@@ -69,9 +79,16 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val coroutineScope = rememberCoroutineScope()
-            // 2. Estados globales de sesión
-            var correoSesionActiva by remember { mutableStateOf("") }
-            var rolUsuario by remember { mutableStateOf<String?>(null) }
+            // 2. Estados globales de sesión (con persistencia segura)
+            var tokenSesion by remember { mutableStateOf<String?>(preferencias.obtenerTokenSesionActiva()) }
+            var correoSesionActiva by remember { mutableStateOf(preferencias.obtenerCorreoSesionActiva() ?: "") }
+            var rolUsuario by remember { mutableStateOf<String?>(preferencias.obtenerRolSesionActiva()) }
+            var idCentroActivo by remember { mutableStateOf<Int?>(preferencias.obtenerCentroIdSesionActiva()) }
+            var estadoCentroActivo by remember { mutableStateOf<String?>(preferencias.obtenerEstadoCentroSesionActiva()) }
+            var centroActivoFlag by remember { mutableStateOf(preferencias.esCentroActivoSesionActiva()) }
+            var centroDemostrativoFlag by remember { mutableStateOf(preferencias.esCentroDemostrativoSesionActiva()) }
+            var mostrarPublicarMascotaCentro by remember { mutableStateOf(false) }
+
             val usuariosRegistrados = remember { mutableStateListOf<UsuarioRegistrado>() }
             var usuarioActualSesion by remember { mutableStateOf<UsuarioRegistrado?>(null) }
             var mostrarRegistro by remember { mutableStateOf(false) }
@@ -92,7 +109,6 @@ class MainActivity : ComponentActivity() {
             var notificarAdopciones by remember { mutableStateOf(true) }
             var notificarMensajes by remember { mutableStateOf(true) }
 
-            var tokenSesion by remember { mutableStateOf<String?>(null) }
 
             AdoptMeTheme(
                 tema = temaSeleccionado,
@@ -330,9 +346,9 @@ class MainActivity : ComponentActivity() {
                     var mostrarPantallaAdopcion by remember { mutableStateOf(false) }
 
                     // Estados para el chat local entre Adoptante y Centro
-                    var idCentroSeleccionado by remember { mutableStateOf(1) }
-                    var nombreCentroSeleccionado by remember { mutableStateOf("Albergue Huellitas del Norte - Lima (Demo)") }
-                    var correoCentroSeleccionado by remember { mutableStateOf("centro@adoptme.com") }
+                    var idCentroSeleccionado by remember { mutableStateOf(preferencias.obtenerCentroIdSesionActiva() ?: 0) }
+                    var nombreCentroSeleccionado by remember { mutableStateOf("") }
+                    var correoCentroSeleccionado by remember { mutableStateOf("") }
                     var correoAdoptanteSeleccionado by remember { mutableStateOf("") }
                     var chatAbiertoCentro by remember { mutableStateOf(false) }
                     val mensajesChatActuales = remember { mutableStateListOf<MensajeChat>() }
@@ -768,8 +784,7 @@ class MainActivity : ComponentActivity() {
 
                     // 9. Cierre de sesión seguro: limpia listas en memoria sin borrar persistencia
                     val manejarCerrarSesion: () -> Unit = {
-                        // NUEVO: Borrar el token al cerrar sesión
-                        preferencias.borrarTokenSesionActiva()
+                        preferencias.limpiarSesionActiva()
 
                         mascotasFavoritas.clear()
                         mascotasVisitadas.clear()
@@ -779,12 +794,17 @@ class MainActivity : ComponentActivity() {
                         tokenSesion = null
                         correoSesionActiva = ""
                         rolUsuario = null
+                        idCentroActivo = null
+                        estadoCentroActivo = null
+                        centroActivoFlag = false
+                        centroDemostrativoFlag = false
+                        mostrarPublicarMascotaCentro = false
                         usuarioActualSesion = null
                         mascotaSeleccionada = null
                         mostrarPantallaAdopcion = false
-                        idCentroSeleccionado = 1
-                        nombreCentroSeleccionado = "Albergue Huellitas del Norte - Lima (Demo)"
-                        correoCentroSeleccionado = "centro@adoptme.com"
+                        idCentroSeleccionado = 0
+                        nombreCentroSeleccionado = ""
+                        correoCentroSeleccionado = ""
                         correoAdoptanteSeleccionado = ""
                         chatAbiertoCentro = false
 
@@ -818,10 +838,24 @@ class MainActivity : ComponentActivity() {
                                 )
                             } else {
                                 PantallaInicioSesion(
-                                    iniciarSesion = { rol, correoLogueado, token, nombreLogueado, telefonoLogueado ->
+                                    iniciarSesion = { rol, correoLogueado, token, nombreLogueado, telefonoLogueado, centroId, estadoCentro, centroActivo, esDemostrativo ->
                                         tokenSesion = token
-                                        // NUEVO: Guardar el token localmente para que Retrofit lo use
-                                        preferencias.guardarTokenSesionActiva(token)
+                                        preferencias.guardarSesionActiva(
+                                            token = token,
+                                            correo = correoLogueado,
+                                            rol = rol,
+                                            centroId = centroId,
+                                            estadoCentro = estadoCentro,
+                                            centroActivo = centroActivo,
+                                            esDemostrativo = esDemostrativo
+                                        )
+                                        idCentroActivo = centroId
+                                        estadoCentroActivo = estadoCentro
+                                        centroActivoFlag = centroActivo
+                                        centroDemostrativoFlag = esDemostrativo
+                                        if (centroId != null && centroId > 0) {
+                                            idCentroSeleccionado = centroId
+                                        }
 
                                         mascotasFavoritas.clear()
                                         notificaciones.clear()
@@ -878,7 +912,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        "Admin" -> {
+                        "Admin", "Administrador" -> {
                             PantallaAdministrador(
                                 solicitudes = solicitudesAdopcion,
                                 aprobar = manejarAprobar,
@@ -893,7 +927,45 @@ class MainActivity : ComponentActivity() {
                         }
 
                         "Centro" -> {
-                            if (chatAbiertoCentro) {
+                            val miCentroViewModel = remember { MiCentroViewModel() }
+
+                            LaunchedEffect(tokenSesion) {
+                                if (!tokenSesion.isNullOrBlank()) {
+                                    try {
+                                        val resp = RetrofitClient.centrosApi.obtenerMiCentro()
+                                        if (resp.isSuccessful && resp.body() != null) {
+                                            val dto = resp.body()!!
+                                            estadoCentroActivo = dto.estado
+                                            centroActivoFlag = dto.activo
+                                            idCentroActivo = dto.id
+                                            preferencias.actualizarEstadoCentro(dto.estado, dto.activo)
+                                            preferencias.actualizarCentroId(dto.id)
+                                        } else if (resp.code() == 401) {
+                                            manejarCerrarSesion()
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.w("CENTRO_SESSION", "No se pudo sincronizar estado del centro", e)
+                                    }
+                                }
+                            }
+
+                            if (mostrarPublicarMascotaCentro) {
+                                PantallaPublicarMascota(
+                                    correoActual = correoSesionActiva,
+                                    publicar = { nuevaMascota ->
+                                        mascotasPublicadas.add(0, nuevaMascota)
+                                        mascotas.add(0, nuevaMascota)
+                                        almacenamientoMascotas.guardarMascotas(mascotasPublicadas)
+                                        recargarCatalogoTrigger++
+                                        mostrarPublicarMascotaCentro = false
+                                    },
+                                    volver = {
+                                        mostrarPublicarMascotaCentro = false
+                                        estadoCentroActivo = preferencias.obtenerEstadoCentroSesionActiva()
+                                        centroActivoFlag = preferencias.esCentroActivoSesionActiva()
+                                    }
+                                )
+                            } else if (chatAbiertoCentro) {
                                 PantallaChat(
                                     idCentro = idCentroSeleccionado,
                                     nombreCentro = nombreCentroSeleccionado,
@@ -907,11 +979,11 @@ class MainActivity : ComponentActivity() {
                                         chatAbiertoCentro = false
                                     }
                                 )
-                            } else {
+                            } else if (estadoCentroActivo.equals("Aprobado", ignoreCase = true) && centroActivoFlag) {
                                 val conversacionesCentro = almacenamientoApp.cargarConversacionesCentro(correoSesionActiva)
                                 PantallaCentro(
                                     conversaciones = conversacionesCentro,
-                                    idCentroActualInicial = idCentroSeleccionado,
+                                    idCentroActualInicial = idCentroActivo ?: idCentroSeleccionado,
                                     abrirConversacion = { idCentro, correoAdoptante, nombreCentro ->
                                         idCentroSeleccionado = idCentro
                                         correoAdoptanteSeleccionado = correoAdoptante
@@ -923,7 +995,25 @@ class MainActivity : ComponentActivity() {
                                         )
                                         chatAbiertoCentro = true
                                     },
-                                    cerrarSesion = manejarCerrarSesion
+                                    cerrarSesion = manejarCerrarSesion,
+                                    onPublicarMascota = {
+                                        mostrarPublicarMascotaCentro = true
+                                    },
+                                    onVerEstadoPendiente = {
+                                        estadoCentroActivo = "Pendiente"
+                                    },
+                                    mascotasTotales = mascotas,
+                                    viewModel = miCentroViewModel
+                                )
+                            } else {
+                                PantallaEstadoCentro(
+                                    viewModel = miCentroViewModel,
+                                    onNavegarAPanelCentro = {
+                                        estadoCentroActivo = "Aprobado"
+                                        centroActivoFlag = true
+                                        preferencias.actualizarEstadoCentro("Aprobado", true)
+                                    },
+                                    onCerrarSesion = manejarCerrarSesion
                                 )
                             }
                         }

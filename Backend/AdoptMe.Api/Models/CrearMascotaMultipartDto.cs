@@ -41,6 +41,11 @@ namespace AdoptMe.Api.Models
         public double? Longitud { get; set; }
 
         /// <summary>
+        /// Identificador de Centro opcional (solo asignable explícitamente por Administrador; para Centros se infiere del JWT).
+        /// </summary>
+        public int? CentroId { get; set; }
+
+        /// <summary>
         /// Archivo de fotografía opcional enviado en el formulario multipart.
         /// </summary>
         public IFormFile? Imagen { get; set; }

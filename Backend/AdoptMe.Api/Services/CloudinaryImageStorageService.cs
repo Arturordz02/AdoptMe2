@@ -45,7 +45,12 @@ namespace AdoptMe.Api.Services
             }
         }
 
-        public async Task<ImageUploadResult> SubirImagenAsync(Stream stream, string nombreArchivo, CancellationToken cancellationToken = default)
+        public Task<ImageUploadResult> SubirImagenAsync(Stream stream, string nombreArchivo, CancellationToken cancellationToken = default)
+        {
+            return SubirImagenAsync(stream, nombreArchivo, null, cancellationToken);
+        }
+
+        public async Task<ImageUploadResult> SubirImagenAsync(Stream stream, string nombreArchivo, string? subcarpeta, CancellationToken cancellationToken = default)
         {
             if (!IsConfigured || _cloudinary == null)
             {
@@ -59,10 +64,20 @@ namespace AdoptMe.Api.Services
                     stream.Position = 0;
                 }
 
+                string carpetaDestino;
+                if (!string.IsNullOrWhiteSpace(subcarpeta))
+                {
+                    carpetaDestino = subcarpeta.Trim();
+                }
+                else
+                {
+                    carpetaDestino = string.IsNullOrWhiteSpace(_settings.Folder) ? "adoptme/mascotas" : _settings.Folder.Trim();
+                }
+
                 var uploadParams = new ImageUploadParams
                 {
                     File = new FileDescription(nombreArchivo, stream),
-                    Folder = string.IsNullOrWhiteSpace(_settings.Folder) ? "adoptme/mascotas" : _settings.Folder.Trim(),
+                    Folder = carpetaDestino,
                     UseFilename = false,
                     UniqueFilename = true,
                     Overwrite = false

@@ -281,7 +281,7 @@ class Preferencias(
     }
 
     // =========================================================
-    // 6. TOKEN JWT (SESIÓN ACTIVA PARA RETROFIT)
+    // 6. TOKEN JWT Y SESIÓN ACTIVA (Fase D - Centros Dinámicos)
     // =========================================================
 
     fun guardarTokenSesionActiva(token: String) {
@@ -294,6 +294,88 @@ class Preferencias(
 
     fun borrarTokenSesionActiva() {
         preferencias.edit().remove("token_jwt_activo").apply()
+    }
+
+    fun guardarSesionActiva(
+        token: String? = null,
+        correo: String,
+        rol: String,
+        centroId: Int? = null,
+        estadoCentro: String? = null,
+        centroActivo: Boolean = false,
+        esDemostrativo: Boolean = false
+    ) {
+        val editor = preferencias.edit()
+            .putString("sesion_correo_activo", normalizarCorreoUsuario(correo))
+            .putString("sesion_rol_activo", rol)
+            .putString("sesion_estado_centro", estadoCentro)
+            .putBoolean("sesion_centro_activo", centroActivo)
+            .putBoolean("sesion_es_demostrativo", esDemostrativo)
+
+        if (!token.isNullOrBlank()) {
+            editor.putString("token_jwt_activo", token)
+        }
+        if (centroId != null && centroId > 0) {
+            editor.putInt("sesion_centro_id", centroId)
+        } else {
+            editor.remove("sesion_centro_id")
+        }
+        editor.apply()
+    }
+
+    fun obtenerCorreoSesionActiva(): String? {
+        return preferencias.getString("sesion_correo_activo", null)
+    }
+
+    fun obtenerRolSesionActiva(): String? {
+        return preferencias.getString("sesion_rol_activo", null)
+    }
+
+    fun obtenerCentroIdSesionActiva(): Int? {
+        return if (preferencias.contains("sesion_centro_id")) {
+            preferencias.getInt("sesion_centro_id", 0).takeIf { it > 0 }
+        } else null
+    }
+
+    fun obtenerEstadoCentroSesionActiva(): String? {
+        return preferencias.getString("sesion_estado_centro", null)
+    }
+
+    fun esCentroActivoSesionActiva(): Boolean {
+        return preferencias.getBoolean("sesion_centro_activo", false)
+    }
+
+    fun esCentroDemostrativoSesionActiva(): Boolean {
+        return preferencias.getBoolean("sesion_es_demostrativo", false)
+    }
+
+    fun actualizarEstadoCentro(estado: String?, activo: Boolean) {
+        preferencias.edit()
+            .putString("sesion_estado_centro", estado)
+            .putBoolean("sesion_centro_activo", activo)
+            .apply()
+    }
+
+    fun actualizarCentroId(centroId: Int?) {
+        val editor = preferencias.edit()
+        if (centroId != null && centroId > 0) {
+            editor.putInt("sesion_centro_id", centroId)
+        } else {
+            editor.remove("sesion_centro_id")
+        }
+        editor.apply()
+    }
+
+    fun limpiarSesionActiva() {
+        preferencias.edit()
+            .remove("token_jwt_activo")
+            .remove("sesion_correo_activo")
+            .remove("sesion_rol_activo")
+            .remove("sesion_centro_id")
+            .remove("sesion_estado_centro")
+            .remove("sesion_centro_activo")
+            .remove("sesion_es_demostrativo")
+            .apply()
     }
 
     // =========================================================
@@ -343,5 +425,14 @@ class Preferencias(
             fechaHora = obtenerFechaAceptacionTerminos(correo) ?: "",
             aceptado = true
         )
+    }
+
+    // CONTROL DETERMINISTA DE ENTORNO LOCAL/PRODUCCIÓN (SOLO EN DEBUG)
+    fun guardarModoLocalDev(activo: Boolean) {
+        preferencias.edit().putBoolean("modo_local_dev", activo).apply()
+    }
+
+    fun obtenerModoLocalDev(): Boolean {
+        return preferencias.getBoolean("modo_local_dev", false)
     }
 }

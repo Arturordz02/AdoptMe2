@@ -29,7 +29,8 @@ fun MascotaDto.toPet(): Pet {
         creadoPorCorreo = creadoPorCorreo,
         esRemota = id > 0,
         latitud = latitud,
-        longitud = longitud
+        longitud = longitud,
+        centroId = centroId
     )
 }
 
@@ -48,6 +49,7 @@ fun Pet.toDto(): MascotaDto {
         imagePublicId = imagePublicId,
         creadoPorCorreo = creadoPorCorreo,
         latitud = latitud,
-        longitud = longitud
+        longitud = longitud,
+        centroId = centroId
     )
 }

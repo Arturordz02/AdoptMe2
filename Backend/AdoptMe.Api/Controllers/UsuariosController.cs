@@ -9,7 +9,6 @@ using System.Text;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Authorization;
 
-
 namespace AdoptMe.Api.Controllers
 {
     [ApiController]
@@ -19,23 +18,30 @@ namespace AdoptMe.Api.Controllers
         private readonly AdoptMeDbContext _context;
         private readonly IPasswordHasher<Usuario> _passwordHasher;
         private readonly IConfiguration _configuration;
+        private readonly ILogger<UsuariosController>? _logger;
 
-        
         public UsuariosController(
             AdoptMeDbContext context,
             IPasswordHasher<Usuario> passwordHasher,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            ILogger<UsuariosController>? logger = null)
         {
             _context = context;
             _passwordHasher = passwordHasher;
             _configuration = configuration;
+            _logger = logger;
         }
 
-
         [HttpPost("registro")]
+        [HttpPost("registro-adoptante")]
         public async Task<IActionResult> Registrar(
             [FromBody] RegistroUsuarioDto datos)
         {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
             string correo = datos.Correo.Trim().ToLowerInvariant();
 
             bool existe = await _context.Usuarios
@@ -86,7 +92,120 @@ namespace AdoptMe.Api.Controllers
                 usuario.Rol
             });
         }
-        
+
+        [HttpPost("registro-centro")]
+        public async Task<IActionResult> RegistrarCentro(
+            [FromBody] RegistroCentroDto datos)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            if (!datos.AceptacionTerminos)
+            {
+                return BadRequest(new
+                {
+                    mensaje = "Debe aceptar los términos y condiciones para registrar un centro de adopción."
+                });
+            }
+
+            // Validar coordenadas por pares: ambas presentes o ambas nulas
+            if ((datos.Latitud.HasValue && !datos.Longitud.HasValue) || (!datos.Latitud.HasValue && datos.Longitud.HasValue))
+            {
+                return BadRequest(new
+                {
+                    mensaje = "Las coordenadas geográficas deben proporcionarse como un par completo (Latitud y Longitud) o ser ambas omitidas."
+                });
+            }
+
+            string correoNorm = datos.Correo.Trim().ToLowerInvariant();
+            string correoContactoNorm = datos.CorreoContacto.Trim().ToLowerInvariant();
+
+            try
+            {
+                bool correoExiste = await _context.Usuarios.AnyAsync(u => u.Correo == correoNorm);
+                if (correoExiste)
+                {
+                    return Conflict(new
+                    {
+                        mensaje = "El correo ya se encuentra registrado"
+                    });
+                }
+
+                ResultadoRegistroCentroDto? resultado = null;
+                var strategy = _context.Database.CreateExecutionStrategy();
+
+                await strategy.ExecuteAsync(async () =>
+                {
+                    using var tx = await _context.Database.BeginTransactionAsync();
+
+                    var usuario = new Usuario
+                    {
+                        Nombre = datos.NombreResponsable.Trim(),
+                        Correo = correoNorm,
+                        Telefono = string.IsNullOrWhiteSpace(datos.TelefonoResponsable)
+                            ? datos.TelefonoCentro.Trim()
+                            : datos.TelefonoResponsable.Trim(),
+                        Rol = "Centro",
+                        FechaRegistro = DateTime.UtcNow
+                    };
+
+                    usuario.PasswordHash = _passwordHasher.HashPassword(
+                        usuario,
+                        datos.Contrasena
+                    );
+
+                    _context.Usuarios.Add(usuario);
+                    await _context.SaveChangesAsync();
+
+                    var centro = new Centro
+                    {
+                        UsuarioId = usuario.Id,
+                        Nombre = datos.NombreCentro.Trim(),
+                        Descripcion = datos.Descripcion.Trim(),
+                        Direccion = datos.Direccion.Trim(),
+                        Distrito = datos.Distrito.Trim(),
+                        Telefono = datos.TelefonoCentro.Trim(),
+                        CorreoContacto = correoContactoNorm,
+                        Horario = datos.Horario.Trim(),
+                        Latitud = datos.Latitud,
+                        Longitud = datos.Longitud,
+                        Estado = "Pendiente",
+                        EsDemostrativo = false,
+                        Activo = true,
+                        FechaSolicitud = DateTime.UtcNow,
+                        FechaCreacion = DateTime.UtcNow
+                    };
+
+                    _context.Centros.Add(centro);
+                    await _context.SaveChangesAsync();
+
+                    await tx.CommitAsync();
+
+                    resultado = new ResultadoRegistroCentroDto
+                    {
+                        Mensaje = "Solicitud de registro de centro enviada exitosamente. Se encuentra pendiente de revisión administrativa.",
+                        UsuarioId = usuario.Id,
+                        CentroId = centro.Id,
+                        NombreCentro = centro.Nombre,
+                        Estado = centro.Estado,
+                        Rol = usuario.Rol
+                    };
+                });
+
+                return StatusCode(201, resultado);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error al registrar transaccionalmente el centro de adopción. Correo: {Correo}", correoNorm);
+                return StatusCode(500, new
+                {
+                    mensaje = "Ocurrió un error interno al registrar el centro de adopción."
+                });
+            }
+        }
+
         [HttpPost("login")]
         public async Task<IActionResult> Login(
             [FromBody] LoginUsuarioDto datos)
@@ -118,7 +237,6 @@ namespace AdoptMe.Api.Controllers
                 });
             }
 
-            
             var jwtKey = _configuration["Jwt:Key"]
                 ?? throw new InvalidOperationException(
                     "No se configuró la clave JWT."
@@ -152,6 +270,31 @@ namespace AdoptMe.Api.Controllers
             var tokenString = new JwtSecurityTokenHandler()
                 .WriteToken(token);
 
+            // Resolver información del centro si corresponde
+            int? centroId = null;
+            string? estadoCentro = null;
+            bool centroActivo = false;
+            bool esDemostrativo = false;
+
+            if (string.Equals(usuario.Rol, "Centro", StringComparison.OrdinalIgnoreCase))
+            {
+                var centro = await _context.Centros
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.UsuarioId == usuario.Id);
+
+                if (centro != null)
+                {
+                    centroId = centro.Id;
+                    estadoCentro = centro.Estado;
+                    centroActivo = centro.Activo;
+                    esDemostrativo = centro.EsDemostrativo;
+                }
+                else
+                {
+                    estadoCentro = "SinPerfil";
+                }
+            }
+
             return Ok(new
             {
                 mensaje = "Inicio de sesión correcto",
@@ -160,6 +303,10 @@ namespace AdoptMe.Api.Controllers
                 usuario.Correo,
                 usuario.Telefono,
                 usuario.Rol,
+                centroId,
+                estadoCentro,
+                centroActivo,
+                esDemostrativo,
                 token = tokenString,
                 expiracion = expiration
             });

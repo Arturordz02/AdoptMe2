@@ -81,9 +81,9 @@ fun PantallaCentro(
     idCentroActualInicial: Int = 1,
     modifier: Modifier = Modifier
 ) {
-    // Aislamiento estricto del Centro Demo: fijado exclusivamente al Centro ID 1
-    val centroActual = CentrosDisponiblesDemo.first { it.id == 1 }
-    val conversacionesFiltradas = conversaciones.filter { it.idCentro == 1 }
+    val centroActual = CentrosDisponiblesDemo.firstOrNull { it.id == idCentroActualInicial }
+        ?: InfoCentroDemo(idCentroActualInicial, "Centro de Adopción", "Centro", "🏡")
+    val conversacionesFiltradas = conversaciones.filter { it.idCentro == idCentroActualInicial }
 
     Column(
         modifier = modifier

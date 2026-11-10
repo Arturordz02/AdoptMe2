@@ -1730,6 +1730,21 @@ fun PantallaPublicarMascota(
                                     }
                                 }
                                 401 -> mensajeGeneralError = "Sesión no autorizada o expirada. Por favor vuelve a iniciar sesión."
+                                403 -> {
+                                    val errorBody = respuesta.errorBody()?.string() ?: ""
+                                    mensajeGeneralError = try {
+                                        org.json.JSONObject(errorBody).optString("mensaje", "Solo centros de adopción aprobados y activos pueden realizar publicaciones institucionales.")
+                                    } catch (_: Exception) {
+                                        "Operación no autorizada: tu centro debe encontrarse Aprobado y Activo para publicar mascotas."
+                                    }
+                                    try {
+                                        val respCentro = RetrofitClient.centrosApi.obtenerMiCentro()
+                                        if (respCentro.isSuccessful && respCentro.body() != null) {
+                                            val cDto = respCentro.body()!!
+                                            RetrofitClient.preferencias?.actualizarEstadoCentro(cDto.estado, cDto.activo)
+                                        }
+                                    } catch (_: Exception) {}
+                                }
                                 413 -> mensajeGeneralError = "La imagen supera el tamaño máximo permitido por el servidor (2 MB)."
                                 503 -> mensajeGeneralError = "El servicio de almacenamiento de imágenes en la nube (Cloudinary) no está configurado en el servidor. Puedes publicar sin fotografía."
                                 else -> mensajeGeneralError = "No se pudo registrar la mascota en el servidor. Código: ${respuesta.code()}"

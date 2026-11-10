@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,6 +21,7 @@ import com.example.adoptme.datastore.CatalogoDataStore
 import com.example.adoptme.entity.MascotaVisitadaEntity
 import com.example.adoptme.mapper.toCrearSolicitudDto
 import com.example.adoptme.mapper.toDto
+import com.example.adoptme.model.toCentroAdopcion
 import com.example.adoptme.model.AdoptionRequest
 import com.example.adoptme.model.MensajeChat
 import com.example.adoptme.model.NotificationItem
@@ -104,6 +106,17 @@ fun PantallaPrincipalAdoptante(
     val contexto = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val dataStore = catalogoDataStore ?: remember { CatalogoDataStore.obtenerInstancia(contexto) }
+
+    var centrosPublicos by remember { mutableStateOf<List<com.example.adoptme.model.CentroAdopcion>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        try {
+            val lista = com.example.adoptme.api.RetrofitClient.centrosApi.obtenerCentros()
+            centrosPublicos = lista.map { it.toCentroAdopcion() }
+        } catch (e: Exception) {
+            // Manejo silencioso en caso de fallo inicial
+        }
+    }
 
     Scaffold(
         modifier = modifier,
@@ -329,7 +342,7 @@ fun PantallaPrincipalAdoptante(
                         "mapa_adopciones", "mapa" -> {
                             MapaAdopcionesScreen(
                                 mascotas = mascotas,
-                                centros = CentrosDemostrativos,
+                                centros = centrosPublicos,
                                 volver = {
                                     pantallaSeleccionada = "home"
                                 },
@@ -439,9 +452,16 @@ fun PantallaPrincipalAdoptante(
                             if (correoAdoptanteSeleccionado != correoUsuarioActivo || mensajesChatActuales.isEmpty()) {
                                 cambiarCorreoAdoptante(correoUsuarioActivo)
                                 if (idCentroSeleccionado <= 0) {
-                                    cambiarIdCentro(1)
-                                    cambiarNombreCentro("Albergue Huellitas del Norte - Lima (Demo)")
-                                    cambiarCorreoCentro("centro@adoptme.com")
+                                    if (centrosPublicos.isNotEmpty()) {
+                                        val primerCentro = centrosPublicos.first()
+                                        cambiarIdCentro(primerCentro.id)
+                                        cambiarNombreCentro(primerCentro.nombre)
+                                        cambiarCorreoCentro(primerCentro.contactoEjemplo)
+                                    } else {
+                                        cambiarIdCentro(1)
+                                        cambiarNombreCentro("Centro de Adopción")
+                                        cambiarCorreoCentro("contacto@adoptme.com")
+                                    }
                                 }
                                 val guardados = almacenamientoApp.cargarMensajesChat(correoUsuarioActivo, idCentroSeleccionado)
                                 mensajesChatActuales.clear()

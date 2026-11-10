@@ -11,20 +11,18 @@ namespace AdoptMe.Api.Services
         bool IsConfigured { get; }
 
         /// <summary>
-        /// Sube un flujo binario de imagen al almacenamiento persistente.
+        /// Sube un flujo binario de imagen al almacenamiento persistente en la carpeta por defecto (adoptme/mascotas).
         /// </summary>
-        /// <param name="stream">Flujo con los bytes de la imagen previamente validados.</param>
-        /// <param name="nombreArchivo">Nombre base sugerido o identificador para el recurso.</param>
-        /// <param name="cancellationToken">Token de cancelación opcional.</param>
-        /// <returns>Resultado con la URL segura HTTPS y el PublicId del recurso remoto.</returns>
         Task<ImageUploadResult> SubirImagenAsync(Stream stream, string nombreArchivo, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Sube un flujo binario de imagen a una subcarpeta específica controlada por el servidor (ej. adoptme/centros).
+        /// </summary>
+        Task<ImageUploadResult> SubirImagenAsync(Stream stream, string nombreArchivo, string? subcarpeta, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Elimina un recurso del almacenamiento persistente utilizando su identificador público (PublicId).
         /// </summary>
-        /// <param name="publicId">Identificador del recurso en Cloudinary.</param>
-        /// <param name="cancellationToken">Token de cancelación opcional.</param>
-        /// <returns>Verdadero si la eliminación fue confirmada o el recurso ya no existía.</returns>
         Task<bool> EliminarImagenAsync(string publicId, CancellationToken cancellationToken = default);
     }
 }

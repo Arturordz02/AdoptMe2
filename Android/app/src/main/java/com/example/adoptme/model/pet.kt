@@ -19,7 +19,8 @@ data class Pet(
     val creadoPorCorreo: String = "",
     val esRemota: Boolean = false,
     val latitud: Double? = null,
-    val longitud: Double? = null
+    val longitud: Double? = null,
+    val centroId: Int? = null
 ) {
     /**
      * Clave única y estable para LazyColumn/LazyRow en Compose.

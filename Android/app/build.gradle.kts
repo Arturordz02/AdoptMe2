@@ -32,13 +32,22 @@ android {
         val mapsKey = secretsProps.getProperty("MAPS_API_KEY") ?: "REEMPLAZAR"
         manifestPlaceholders["MAPS_API_KEY"] = mapsKey
         buildConfigField("String", "MAPS_API_KEY", "\"$mapsKey\"")
+        buildConfigField("String", "BASE_URL", "\"https://adoptme2.onrender.com/\"")
     }
 
     buildTypes {
         release {
+            buildConfigField("String", "BASE_URL", "\"https://adoptme2.onrender.com/\"")
+            buildConfigField("Boolean", "PERMITIR_URL_DEV", "false")
+            buildConfigField("String", "URL_LOCAL_DEV", "\"\"")
             optimization {
                 enable = false
             }
+        }
+        debug {
+            buildConfigField("String", "BASE_URL", "\"https://adoptme2.onrender.com/\"")
+            buildConfigField("Boolean", "PERMITIR_URL_DEV", "true")
+            buildConfigField("String", "URL_LOCAL_DEV", "\"http://127.0.0.1:5217/\"")
         }
     }
     compileOptions {

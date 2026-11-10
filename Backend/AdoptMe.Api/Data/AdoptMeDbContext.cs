@@ -17,6 +17,8 @@ namespace AdoptMe.Api.Data
 
         public DbSet<SolicitudAdopcion> Solicitudes { get; set; }
 
+        public DbSet<Centro> Centros { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -46,6 +48,45 @@ namespace AdoptMe.Api.Data
                 entity.HasIndex(s => s.MascotaId);
                 entity.HasIndex(s => s.AdoptanteId);
                 entity.HasIndex(s => s.Status);
+            });
+
+            modelBuilder.Entity<Centro>(entity =>
+            {
+                entity.ToTable("Centros");
+
+                entity.HasKey(c => c.Id);
+
+                // Relación con Usuario propietario: Restrict para evitar borrado accidental
+                entity.HasOne(c => c.Usuario)
+                      .WithMany()
+                      .HasForeignKey(c => c.UsuarioId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                // Relación con Administrador revisor: SetNull si el admin fuera eliminado
+                entity.HasOne(c => c.RevisadoPorUsuario)
+                      .WithMany()
+                      .HasForeignKey(c => c.RevisadoPorUsuarioId)
+                      .OnDelete(DeleteBehavior.SetNull);
+
+                // Índice único parcial para UsuarioId no nulo
+                entity.HasIndex(c => c.UsuarioId)
+                      .IsUnique()
+                      .HasFilter("\"UsuarioId\" IS NOT NULL");
+
+                entity.HasIndex(c => new { c.Estado, c.Activo });
+                entity.HasIndex(c => c.Distrito);
+                entity.HasIndex(c => c.FechaSolicitud);
+            });
+
+            modelBuilder.Entity<Mascota>(entity =>
+            {
+                // Relación con Centro: SetNull si el centro es desactivado/eliminado
+                entity.HasOne(m => m.Centro)
+                      .WithMany(c => c.Mascotas)
+                      .HasForeignKey(m => m.CentroId)
+                      .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasIndex(m => m.CentroId);
             });
         }
     }

@@ -10,7 +10,15 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitClient {
 
-    private const val BASE_URL = "https://adoptme2.onrender.com/"
+    const val URL_PRODUCCION = "https://adoptme2.onrender.com/"
+    val URL_LOCAL_DEV: String = com.example.adoptme.BuildConfig.URL_LOCAL_DEV
+
+    // Determinista: toma BuildConfig.BASE_URL como valor inicial por defecto
+    @Volatile
+    private var baseUrlActual: String = com.example.adoptme.BuildConfig.BASE_URL
+
+    val baseUrl: String
+        get() = baseUrlActual
 
     // Permitimos inyectar las Preferencias para leer el token
     var preferencias: Preferencias? = null
@@ -37,13 +45,60 @@ object RetrofitClient {
         .addInterceptor(logging)
         .build()
 
-    private val retrofit = Retrofit.Builder()
-        .baseUrl(BASE_URL)
-        .client(client)
-        .addConverterFactory(GsonConverterFactory.create())
-        .build()
+    @Volatile
+    private var retrofitInstance: Retrofit = construirRetrofit(baseUrlActual)
 
-    val mascotasApi: MascotasApi = retrofit.create(MascotasApi::class.java)
-    val usuariosApi: UsuariosApi = retrofit.create(UsuariosApi::class.java)
-    val solicitudesApi: SolicitudesApi = retrofit.create(SolicitudesApi::class.java)
+    private fun construirRetrofit(url: String): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl(url)
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+
+    @Synchronized
+    fun configurarBaseUrl(nuevaUrl: String) {
+        // En release o compilaciones de producción donde PERMITIR_URL_DEV es false,
+        // está estrictamente prohibido alterar la URL de producción
+        if (!com.example.adoptme.BuildConfig.PERMITIR_URL_DEV) {
+            return
+        }
+        val urlFormateada = if (nuevaUrl.endsWith("/")) nuevaUrl else "$nuevaUrl/"
+        if (baseUrlActual != urlFormateada) {
+            baseUrlActual = urlFormateada
+            retrofitInstance = construirRetrofit(urlFormateada)
+            _mascotasApi = retrofitInstance.create(MascotasApi::class.java)
+            _usuariosApi = retrofitInstance.create(UsuariosApi::class.java)
+            _solicitudesApi = retrofitInstance.create(SolicitudesApi::class.java)
+            _centrosApi = retrofitInstance.create(CentrosApi::class.java)
+        }
+    }
+
+    fun restaurarBaseUrlProduccion() {
+        if (!com.example.adoptme.BuildConfig.PERMITIR_URL_DEV) {
+            baseUrlActual = URL_PRODUCCION
+            return
+        }
+        configurarBaseUrl(URL_PRODUCCION)
+    }
+
+    @Volatile
+    private var _mascotasApi: MascotasApi = retrofitInstance.create(MascotasApi::class.java)
+    val mascotasApi: MascotasApi
+        get() = _mascotasApi
+
+    @Volatile
+    private var _usuariosApi: UsuariosApi = retrofitInstance.create(UsuariosApi::class.java)
+    val usuariosApi: UsuariosApi
+        get() = _usuariosApi
+
+    @Volatile
+    private var _solicitudesApi: SolicitudesApi = retrofitInstance.create(SolicitudesApi::class.java)
+    val solicitudesApi: SolicitudesApi
+        get() = _solicitudesApi
+
+    @Volatile
+    private var _centrosApi: CentrosApi = retrofitInstance.create(CentrosApi::class.java)
+    val centrosApi: CentrosApi
+        get() = _centrosApi
 }
