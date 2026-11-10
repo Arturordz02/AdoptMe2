@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -19,9 +20,14 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
@@ -59,11 +65,80 @@ fun TarjetaSolicitudAdmin(
     solicitud: AdoptionRequest,
     ponerEnRevision: (AdoptionRequest) -> Unit,
     aprobar: (AdoptionRequest) -> Pair<Boolean, String>,
-    rechazar: (AdoptionRequest) -> Unit,
+    rechazar: (solicitud: AdoptionRequest, motivo: String) -> Unit,
     onConfirmacion: (String) -> Unit,
     onErrorValidacion: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var mostrarDialogoRechazo by remember { mutableStateOf(false) }
+    var motivoRechazo by remember { mutableStateOf("") }
+
+    if (mostrarDialogoRechazo) {
+        AlertDialog(
+            onDismissRequest = {
+                mostrarDialogoRechazo = false
+                motivoRechazo = ""
+            },
+            title = {
+                Text(
+                    text = "Rechazar Solicitud de Adopción",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Indica el motivo por el cual se rechaza la solicitud de ${solicitud.applicantName.ifBlank { "el postulante" }} para ${solicitud.petName}:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AdoptTextSecondary
+                    )
+                    OutlinedTextField(
+                        value = motivoRechazo,
+                        onValueChange = { motivoRechazo = it },
+                        label = { Text("Motivo del rechazo *") },
+                        placeholder = { Text("Mínimo 5 caracteres explicativos...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3,
+                        maxLines = 5,
+                        supportingText = {
+                            Text(
+                                text = "${motivoRechazo.trim().length} / 5 caracteres mín.",
+                                color = if (motivoRechazo.trim().length >= 5) AdoptTealDark else MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val motivoFinal = motivoRechazo.trim()
+                        if (motivoFinal.length >= 5) {
+                            mostrarDialogoRechazo = false
+                            rechazar(solicitud, motivoFinal)
+                            onConfirmacion("La solicitud para ${solicitud.petName} fue rechazada.")
+                            motivoRechazo = ""
+                        }
+                    },
+                    enabled = motivoRechazo.trim().length >= 5,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Confirmar Rechazo", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = {
+                    mostrarDialogoRechazo = false
+                    motivoRechazo = ""
+                }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -203,11 +278,11 @@ fun TarjetaSolicitudAdmin(
                             }
                         }
 
-                        // Botón Rechazar
+                        // Botón Rechazar (abre diálogo con motivo obligatorio)
                         OutlinedButton(
                             onClick = {
-                                rechazar(solicitud)
-                                onConfirmacion("La solicitud para ${solicitud.petName} fue rechazada.")
+                                motivoRechazo = ""
+                                mostrarDialogoRechazo = true
                             },
                             shape = RoundedCornerShape(10.dp),
                             border = BorderStroke(1.dp, StatusRedText),
@@ -227,21 +302,50 @@ fun TarjetaSolicitudAdmin(
                 }
 
                 else -> {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (solicitud.status.equals("Aprobada", ignoreCase = true)) StatusGreenBg else StatusRedBg,
-                        modifier = Modifier.fillMaxWidth()
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text(
-                            text = if (solicitud.status.equals("Aprobada", ignoreCase = true))
-                                "✅ Solicitud concluida: Aprobada (Mascota en proceso)"
-                            else
-                                "❌ Solicitud concluida: Rechazada",
-                            color = if (solicitud.status.equals("Aprobada", ignoreCase = true)) StatusGreenText else StatusRedText,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                        )
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (solicitud.status.equals("Aprobada", ignoreCase = true)) StatusGreenBg else StatusRedBg,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = if (solicitud.status.equals("Aprobada", ignoreCase = true))
+                                    "✅ Solicitud concluida: Aprobada (Mascota en proceso)"
+                                else
+                                    "❌ Solicitud concluida: Rechazada",
+                                color = if (solicitud.status.equals("Aprobada", ignoreCase = true)) StatusGreenText else StatusRedText,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
+
+                        if (solicitud.status.equals("Rechazada", ignoreCase = true) && !solicitud.observacion.isNullOrBlank()) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = AdoptMeBg,
+                                border = BorderStroke(1.dp, BorderWarm),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Text(
+                                        text = "Motivo de rechazo registrado:",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = StatusRedText
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = solicitud.observacion,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = AdoptTextDark
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

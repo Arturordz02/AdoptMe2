@@ -14,5 +14,6 @@ data class AdoptionRequest(
     val previousExperience: String = "",
     val reason: String = "",
     val status: String = "Pendiente",
-    val id: Int = 0
+    val id: Int = 0,
+    val observacion: String? = null
 )
