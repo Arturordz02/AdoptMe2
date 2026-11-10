@@ -56,7 +56,7 @@ class AdminCentrosViewModel : ViewModel() {
                     )
                 }
             } catch (e: IOException) {
-                _uiState.value = AdminCentrosUiState.Error("Sin conexión con el servidor.")
+                _uiState.value = AdminCentrosUiState.Error(RetrofitClient.resolverMensajeErrorServidor(e))
             } catch (e: Exception) {
                 _uiState.value = AdminCentrosUiState.Error(e.localizedMessage ?: "Error inesperado.")
             }

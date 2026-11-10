@@ -64,7 +64,7 @@ class MiCentroViewModel : ViewModel() {
                     _uiState.value = MiCentroUiState.Error(mensaje, codigoHttp = codigo, estado = estado)
                 }
             } catch (e: IOException) {
-                _uiState.value = MiCentroUiState.Error("Sin conexión con el servidor. Revisa tu red.")
+                _uiState.value = MiCentroUiState.Error(RetrofitClient.resolverMensajeErrorServidor(e))
             } catch (e: Exception) {
                 _uiState.value = MiCentroUiState.Error(e.localizedMessage ?: "Error al cargar información del centro.")
             }

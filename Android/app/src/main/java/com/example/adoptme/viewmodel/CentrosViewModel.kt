@@ -39,12 +39,13 @@ class CentrosViewModel : ViewModel() {
                 _uiState.value = CentrosUiState.Exito(resultado)
             } catch (e: IOException) {
                 _uiState.value = CentrosUiState.Error(
-                    "No se pudo conectar con el servidor. Verifica tu conexión a internet o intenta nuevamente."
+                    RetrofitClient.resolverMensajeErrorServidor(e)
                 )
             } catch (e: retrofit2.HttpException) {
                 val mensaje = when (e.code()) {
                     404 -> "No se encontraron centros de adopción disponibles."
-                    500, 502, 503 -> "El servicio de centros no está disponible temporalmente. Intente más tarde."
+                    502, 503, 504 -> "El servidor está iniciando. Intenta nuevamente en unos segundos."
+                    500 -> "El servicio de centros no está disponible temporalmente. Intente más tarde."
                     else -> "Error al consultar los centros de adopción (${e.code()})."
                 }
                 _uiState.value = CentrosUiState.Error(mensaje)

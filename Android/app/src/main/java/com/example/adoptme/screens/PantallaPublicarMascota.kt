@@ -8,8 +8,16 @@ import com.example.adoptme.location.LocationHelper
 import com.example.adoptme.mapper.toPet
 import com.example.adoptme.model.MascotaDto
 import com.example.adoptme.model.Pet
+import com.example.adoptme.model.EdadMascota
+import com.example.adoptme.model.formatearEdadMascota
+import com.example.adoptme.model.interpretarEdadMascota
+import com.example.adoptme.model.validarEdadMascota
 import com.example.adoptme.utils.formatearEdadCanonica
 import com.example.adoptme.utils.ImageProcessor
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.ui.text.input.KeyboardType
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -205,35 +213,16 @@ fun esEspecieValida(especie: String): Boolean {
 
 
 /**
-
  * Valida el formato de la edad de la mascota.
-
- * Acepta formatos como: "1 año", "2 años", "6 meses", "10 meses".
-
- * Rechaza vacío, texto sin número, números negativos o formatos desconocidos.
-
+ * Acepta formatos simples ("1 año", "2 años", "6 meses"), compuestos ("2 años y 6 meses")
+ * y la opción "Menos de 1 mes".
+ * Rechaza vacío, texto sin número, números negativos, 0 años aislado o formatos desconocidos.
  */
-
 fun esFormatoEdadValido(edad: String): Boolean {
-
-    val limpia = edad.trim().lowercase()
-
-        .replace('á', 'a')
-
-        .replace('é', 'e')
-
-        .replace('í', 'i')
-
-        .replace('ó', 'o')
-
-        .replace('ú', 'u')
-
+    val limpia = edad.trim()
     if (limpia.isBlank()) return false
-
-    val regex = Regex("""^([1-9]\d?)\s*(ano|anos|anio|anios|año|años|mes|meses)$""")
-
-    return regex.matches(limpia)
-
+    val interpretada = interpretarEdadMascota(limpia) ?: return false
+    return validarEdadMascota(interpretada) == null
 }
 
 
@@ -309,13 +298,10 @@ fun revisarPublicacion(
     val errorRaza = if (raza.isBlank()) "La raza es obligatoria." else null
 
     val errorEdad = when {
-
         edad.isBlank() -> "La edad es obligatoria."
-
+        edad.startsWith("invalido: ") -> edad.removePrefix("invalido: ")
         !esFormatoEdadValido(edad) -> "Formato inválido. Ejemplo: '2 años' o '6 meses'."
-
         else -> null
-
     }
 
     val errorGenero = when {
@@ -561,6 +547,29 @@ fun PantallaPublicarMascota(
     var raza by remember { mutableStateOf("") }
 
     var edad by remember { mutableStateOf("") }
+    var edadAniosTexto by remember { mutableStateOf("") }
+    var edadMesesTexto by remember { mutableStateOf("") }
+    var esRecienNacido by remember { mutableStateOf(false) }
+
+    val edadCalculada = remember(edadAniosTexto, edadMesesTexto, esRecienNacido) {
+        if (esRecienNacido) {
+            EdadMascota(0, 0, menosDeUnMes = true)
+        } else {
+            val a = edadAniosTexto.toIntOrNull() ?: 0
+            val m = edadMesesTexto.toIntOrNull() ?: 0
+            EdadMascota(a, m, menosDeUnMes = false)
+        }
+    }
+
+    val textoEdadPreview = remember(edadCalculada, esRecienNacido, edadAniosTexto, edadMesesTexto) {
+        if (esRecienNacido) {
+            "Menos de 1 mes"
+        } else if (edadAniosTexto.isBlank() && edadMesesTexto.isBlank()) {
+            "Indica los años y/o meses"
+        } else {
+            formatearEdadMascota(edadCalculada)
+        }
+    }
 
     var genero by remember { mutableStateOf("") }
 
@@ -1245,40 +1254,121 @@ fun PantallaPublicarMascota(
 
 
 
-                // 4. Edad
-
+                // 4. Edad (Años, Meses y opción rápida para recién nacidos)
                 Text("Edad *", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = AdoptTextDark)
-
                 Spacer(modifier = Modifier.height(4.dp))
 
-                OutlinedTextField(
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = if (esRecienNacido) "" else edadAniosTexto,
+                        onValueChange = { nuevo ->
+                            if (!esRecienNacido) {
+                                val soloDigitos = nuevo.filter { it.isDigit() }.take(2)
+                                edadAniosTexto = soloDigitos
+                                if (errores.errorEdad != null) errores = errores.copy(errorEdad = null)
+                            }
+                        },
+                        label = { Text("Años (0 - 40)") },
+                        placeholder = { Text("0") },
+                        singleLine = true,
+                        enabled = !esRecienNacido && !publicando,
+                        isError = errores.errorEdad != null,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    )
 
-                    value = edad,
+                    OutlinedTextField(
+                        value = if (esRecienNacido) "" else edadMesesTexto,
+                        onValueChange = { nuevo ->
+                            if (!esRecienNacido) {
+                                val soloDigitos = nuevo.filter { it.isDigit() }.take(2)
+                                edadMesesTexto = soloDigitos
+                                if (errores.errorEdad != null) errores = errores.copy(errorEdad = null)
+                            }
+                        },
+                        label = { Text("Meses (0 - 11)") },
+                        placeholder = { Text("0") },
+                        singleLine = true,
+                        enabled = !esRecienNacido && !publicando,
+                        isError = errores.errorEdad != null,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
 
-                    onValueChange = {
+                Spacer(modifier = Modifier.height(6.dp))
 
-                        edad = it
+                // Opción rápida para recién nacidos
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(enabled = !publicando) {
+                            esRecienNacido = !esRecienNacido
+                            if (esRecienNacido) {
+                                edadAniosTexto = ""
+                                edadMesesTexto = ""
+                            }
+                            if (errores.errorEdad != null) errores = errores.copy(errorEdad = null)
+                        }
+                        .padding(vertical = 4.dp, horizontal = 2.dp)
+                ) {
+                    Checkbox(
+                        checked = esRecienNacido,
+                        onCheckedChange = { check ->
+                            esRecienNacido = check
+                            if (check) {
+                                edadAniosTexto = ""
+                                edadMesesTexto = ""
+                            }
+                            if (errores.errorEdad != null) errores = errores.copy(errorEdad = null)
+                        },
+                        enabled = !publicando,
+                        colors = CheckboxDefaults.colors(checkedColor = AdoptTeal)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Menos de 1 mes (cachorro recién nacido)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (esRecienNacido) AdoptTeal else AdoptTextDark,
+                        fontWeight = if (esRecienNacido) FontWeight.SemiBold else FontWeight.Normal
+                    )
+                }
 
-                        if (errores.errorEdad != null) errores = errores.copy(errorEdad = null)
-
-                    },
-
-                    placeholder = { Text("Ejemplo: 2 años o 6 meses") },
-
-                    singleLine = true,
-
-                    isError = errores.errorEdad != null,
-
-                    shape = RoundedCornerShape(10.dp),
-
-                    modifier = Modifier.fillMaxWidth()
-
-                )
+                // Vista previa en tiempo real
+                Surface(
+                    color = AdoptMeBg,
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, BorderWarm),
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Vista previa: ",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AdoptTextSecondary,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = textoEdadPreview,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (esRecienNacido || edadAniosTexto.isNotBlank() || edadMesesTexto.isNotBlank()) AdoptTeal else AdoptTextSecondary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
 
                 if (errores.errorEdad != null) {
-
                     Text(text = errores.errorEdad!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp, start = 4.dp))
-
                 }
 
 
@@ -1629,32 +1719,37 @@ fun PantallaPublicarMascota(
 
 
 
+                val edadAValidar: String = when {
+                    esRecienNacido -> "Menos de 1 mes"
+                    edadAniosTexto.isNotBlank() || edadMesesTexto.isNotBlank() -> {
+                        val a = edadAniosTexto.toIntOrNull() ?: 0
+                        val m = edadMesesTexto.toIntOrNull() ?: 0
+                        val modelo = EdadMascota(a, m, false)
+                        val err = validarEdadMascota(modelo)
+                        if (err != null) {
+                            "invalido: $err"
+                        } else {
+                            formatearEdadMascota(modelo)
+                        }
+                    }
+                    edad.isNotBlank() -> edad
+                    else -> ""
+                }
+
                 val resultadoValidacion = revisarPublicacion(
-
                     nombre = nombre,
-
                     especie = especie,
-
                     raza = raza,
-
-                    edad = edad,
-
+                    edad = edadAValidar,
                     genero = genero,
-
                     ubicacion = ubicacion,
-
                     descripcion = descripcion
-
                 )
-
-
 
                 errores = resultadoValidacion
 
-
-
                 if (resultadoValidacion.esValido) {
-                    val edadCanonica = formatearEdadCanonica(edad)
+                    val edadCanonica = formatearEdadCanonica(edadAValidar)
                     edad = edadCanonica
                     publicando = true
                     mensajeGeneralError = ""
@@ -1746,11 +1841,18 @@ fun PantallaPublicarMascota(
                                     } catch (_: Exception) {}
                                 }
                                 413 -> mensajeGeneralError = "La imagen supera el tamaño máximo permitido por el servidor (2 MB)."
-                                503 -> mensajeGeneralError = "El servicio de almacenamiento de imágenes en la nube (Cloudinary) no está configurado en el servidor. Puedes publicar sin fotografía."
+                                502, 504 -> mensajeGeneralError = "El servidor está iniciando. Intenta nuevamente en unos segundos."
+                                503 -> {
+                                    if (bytesFotoMascota != null && bytesFotoMascota!!.isNotEmpty()) {
+                                        mensajeGeneralError = "El servicio de almacenamiento de imágenes en la nube (Cloudinary) no está configurado en el servidor. Puedes publicar sin fotografía."
+                                    } else {
+                                        mensajeGeneralError = "El servidor está iniciando. Intenta nuevamente en unos segundos."
+                                    }
+                                }
                                 else -> mensajeGeneralError = "No se pudo registrar la mascota en el servidor. Código: ${respuesta.code()}"
                             }
                         } catch (e: Exception) {
-                            mensajeGeneralError = "No se pudo conectar con el servidor. Revisa tu conexión a Internet e inténtalo nuevamente."
+                            mensajeGeneralError = RetrofitClient.resolverMensajeErrorServidor(e)
                         } finally {
                             publicando = false
                         }

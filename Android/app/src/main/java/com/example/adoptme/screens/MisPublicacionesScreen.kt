@@ -575,7 +575,7 @@ fun DialogoEditarMascota(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // 4. Edad
-                Text("Edad * (Ej: 2 años o 6 meses)", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = AdoptTextDark)
+                Text("Edad * (Ej: 2 años y 6 meses, 1 año o Menos de 1 mes)", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = AdoptTextDark)
                 Spacer(modifier = Modifier.height(4.dp))
                 OutlinedTextField(
                     value = edad,
@@ -583,7 +583,7 @@ fun DialogoEditarMascota(
                         edad = it
                         errorMensaje = null
                     },
-                    placeholder = { Text("Ej: 2 años o 6 meses") },
+                    placeholder = { Text("Ej: 2 años y 6 meses") },
                     singleLine = true,
                     enabled = !guardando,
                     shape = RoundedCornerShape(10.dp),

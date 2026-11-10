@@ -65,13 +65,8 @@ class MainActivity : ComponentActivity() {
         val catalogoDataStore = CatalogoDataStore.obtenerInstancia(applicationContext)
 
         // Conectar Retrofit con SharedPreferences para usar el Token JWT
+        // La URL base es establecida determinísticamente por BuildConfig.BASE_URL (Render por defecto)
         RetrofitClient.preferencias = preferencias
-        // Configuración determinista: en debug conecta a URL local si está habilitado
-        if (com.example.adoptme.BuildConfig.DEBUG && com.example.adoptme.BuildConfig.PERMITIR_URL_DEV && RetrofitClient.URL_LOCAL_DEV.isNotBlank()) {
-            RetrofitClient.configurarBaseUrl(RetrofitClient.URL_LOCAL_DEV)
-        } else {
-            RetrofitClient.restaurarBaseUrlProduccion()
-        }
 
         // Migración idempotente de claves globales antiguas
         almacenamientoApp.migrarDatosAntiguosSiExisten()

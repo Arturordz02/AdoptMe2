@@ -303,7 +303,7 @@ fun PantallaRegistro(
                         errorServidor = "No se pudo completar el registro (HTTP ${respuesta.code()})."
                     }
                 } catch (e: Exception) {
-                    errorServidor = "No se pudo conectar con el servidor. Revisa tu conexión."
+                    errorServidor = RetrofitClient.resolverMensajeErrorServidor(e)
                 } finally {
                     registrando = false
                 }
@@ -430,7 +430,7 @@ fun PantallaRegistro(
                         errorServidor = mensaje
                     }
                 } catch (e: Exception) {
-                    errorServidor = "No se pudo conectar con el servidor. Revisa tu red."
+                    errorServidor = RetrofitClient.resolverMensajeErrorServidor(e)
                 } finally {
                     registrando = false
                 }
